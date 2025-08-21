@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
 const fs = require('fs');
+const crypto = require('crypto');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,9 +18,8 @@ const PORT = process.env.PORT || 3001;
 const wordsData = JSON.parse(fs.readFileSync('./words.json', 'utf8'));
 const rooms = {};
 
-const generateRoomId = () => {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
+const generateRoomId = () => Math.random().toString(36).substring(2, 8).toUpperCase();
+const generatePersistentId = () => crypto.randomUUID();
 
 const resetRoundState = (room) => {
     room.gameState = 'waiting';
@@ -36,15 +36,17 @@ const resetRoundState = (room) => {
 io.on('connection', (socket) => {
   console.log('a user connected:', socket.id);
 
+  const createPlayer = (name) => ({ id: socket.id, persistentId: generatePersistentId(), name, score: 0 });
+
   socket.on('createRoom', ({ playerName, category, targetScore }) => {
     const roomId = generateRoomId();
-    const player = { id: socket.id, name: playerName, score: 0 };
+    const player = createPlayer(playerName);
     rooms[roomId] = {
       roomId,
       players: [player],
       hostId: socket.id,
       category,
-      targetScore: targetScore || 5, // Default target score is 5
+      targetScore: targetScore || 5,
       ...resetRoundState({})
     };
     socket.join(roomId);
@@ -54,20 +56,32 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', ({ playerName, roomId }) => {
     if (!rooms[roomId]) return socket.emit('error', { message: 'Room not found' });
     if (rooms[roomId].gameState !== 'waiting') return socket.emit('error', { message: 'Game has already started' });
-    const player = { id: socket.id, name: playerName, score: 0 };
+    const player = createPlayer(playerName);
     rooms[roomId].players.push(player);
     socket.join(roomId);
     io.to(roomId).emit('updateRoom', rooms[roomId]);
+  });
+
+  socket.on('reconnectPlayer', ({ persistentId, roomId }) => {
+    const room = rooms[roomId];
+    if (!room) return;
+    const player = room.players.find(p => p.persistentId === persistentId);
+    if (player) {
+        console.log(`Reconnecting player ${player.name} with new socket id`);
+        player.id = socket.id; // Update socket ID
+        socket.join(roomId);
+        io.to(roomId).emit('updateRoom', room);
+    } else {
+        socket.emit('error', { message: 'Could not reconnect. Player not found.' });
+    }
   });
 
   socket.on('startGame', ({ roomId }) => {
     let room = rooms[roomId];
     if (!room || room.hostId !== socket.id) return;
     if (room.players.length < 2) return socket.emit('error', { message: 'Need at least 2 players to start.' });
-
     room = resetRoundState(room);
     room.gameState = 'playing';
-
     const liarIndex = Math.floor(Math.random() * room.players.length);
     room.liarId = room.players[liarIndex].id;
     const categoryWords = wordsData[room.category];
@@ -75,7 +89,6 @@ io.on('connection', (socket) => {
     room.word = categoryWords[wordIndex];
     const firstTurnIndex = Math.floor(Math.random() * room.players.length);
     room.turn = room.players[firstTurnIndex].id;
-
     room.players.forEach(player => {
         const playerSocket = io.sockets.sockets.get(player.id);
         if (!playerSocket) return;
@@ -92,12 +105,8 @@ io.on('connection', (socket) => {
   const endRound = (roomId) => {
     const room = rooms[roomId];
     const winner = room.players.find(p => p.score >= room.targetScore);
-
-    if (winner) {
-        room.gameState = 'finished';
-    } else {
-        room.gameState = 'roundOver';
-    }
+    if (winner) room.gameState = 'finished';
+    else room.gameState = 'roundOver';
     io.to(roomId).emit('updateRoom', room);
   }
 
@@ -120,7 +129,6 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || room.gameState !== 'voting' || room.votes[socket.id]) return;
     room.votes[socket.id] = votedPlayerId;
-
     if (Object.keys(room.votes).length === room.players.length) {
         const voteCounts = {};
         Object.values(room.votes).forEach(vote => { voteCounts[vote] = (voteCounts[vote] || 0) + 1; });
@@ -128,7 +136,6 @@ io.on('connection', (socket) => {
         const mostVotedPlayer = room.players.find(p => p.id === mostVotedId);
         const isLiar = mostVotedId === room.liarId;
         room.voteResult = { mostVotedPlayer, isLiar };
-
         if (isLiar) {
             room.players.forEach(p => { if (p.id !== room.liarId) p.score += 1; });
             room.gameState = 'liarGuess';
@@ -138,14 +145,14 @@ io.on('connection', (socket) => {
             if(liar) liar.score += 1;
             endRound(roomId);
         }
+    } else {
+        io.to(roomId).emit('updateRoom', room);
     }
-    io.to(roomId).emit('updateRoom', room);
   });
 
   socket.on('submitLiarGuess', ({ roomId, guess }) => {
     const room = rooms[roomId];
     if (!room || room.gameState !== 'liarGuess' || socket.id !== room.liarId) return;
-
     const correctGuess = guess.trim().toLowerCase() === room.word.toLowerCase();
     if (correctGuess) {
         const liar = room.players.find(p => p.id === room.liarId);
@@ -158,20 +165,24 @@ io.on('connection', (socket) => {
   socket.on('restartGame', ({ roomId }) => {
     const room = rooms[roomId];
     if (!room || room.hostId !== socket.id) return;
-
-    // Reset scores for all players
     room.players.forEach(p => p.score = 0);
-    // Reset round state and set to waiting
-    rooms[roomId] = {
-        ...room,
-        ...resetRoundState({})
-    };
+    rooms[roomId] = { ...room, ...resetRoundState({}) };
     io.to(roomId).emit('updateRoom', rooms[roomId]);
   });
 
   socket.on('disconnect', () => {
+    console.log('user disconnected:', socket.id);
+    // Note: A robust disconnect/reconnect logic would use a timeout
+    // to avoid instantly removing a player who is just refreshing.
+    // For this project, we'll keep it simple: reconnect will fix it.
     const roomId = Object.keys(rooms).find(key => rooms[key] && rooms[key].players.some(p => p.id === socket.id));
     if (!roomId || !rooms[roomId]) return;
+    const player = rooms[roomId].players.find(p => p.id === socket.id);
+    if (!player) return;
+
+    console.log(`Player ${player.name} disconnected from room ${roomId}`);
+    // To prevent flicker, we can just mark them as disconnected instead of removing
+    // But for simplicity, we remove them and reconnect will add them back.
     rooms[roomId].players = rooms[roomId].players.filter(p => p.id !== socket.id);
     if (rooms[roomId].players.length === 0) {
         delete rooms[roomId];

@@ -4,7 +4,8 @@ import './App.css';
 
 // Type definitions
 interface Player {
-  id: string;
+  id: string; // socket.id - can change on refresh
+  persistentId: string; // permanent id for the player
   name: string;
   score: number;
 }
@@ -42,10 +43,26 @@ function App() {
     const [error, setError] = useState('');
 
     useEffect(() => {
+        // Attempt to reconnect if session data exists in localStorage
+        const persistentId = localStorage.getItem('liarGamePlayerId');
+        const roomId = localStorage.getItem('liarGameRoomId');
+        if (persistentId && roomId) {
+            console.log(`Found session data, attempting to reconnect... pId: ${persistentId}, rId: ${roomId}`);
+            socket.emit('reconnectPlayer', { persistentId, roomId });
+        }
+
         socket.on('connect', () => console.log('Socket connected!', socket.id));
         socket.on('updateRoom', (updatedRoom: Room) => {
             console.log('✅ [RECEIVE] updateRoom:', updatedRoom);
             setRoom(updatedRoom);
+
+            // Find my player data to store persistentId
+            const me = updatedRoom.players.find(p => p.id === socket.id);
+            if (me) {
+                localStorage.setItem('liarGamePlayerId', me.persistentId);
+                localStorage.setItem('liarGameRoomId', updatedRoom.roomId);
+            }
+
             if (updatedRoom.gameState === 'waiting') {
                 setPlayerInfo(null);
             }
@@ -172,6 +189,11 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
         socket.emit('submitLiarGuess', { roomId: room.roomId, guess: liarGuess });
         setLiarGuess('');
     };
+    const handleLeaveRoom = () => {
+        localStorage.removeItem('liarGamePlayerId');
+        localStorage.removeItem('liarGameRoomId');
+        window.location.reload();
+    };
 
     const turnPlayer = room.players.find(p => p.id === room.turn);
     const winner = room.players.find(p => p.score >= room.targetScore);
@@ -234,14 +256,14 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                 <div className="col-md-4">
                     {/* Player List and Controls */}
                     <div className="card">
-                        <div className="card-header d-flex justify-content-between align-items-center"><h3>방: {room.roomId}</h3><span>목표: {room.targetScore}점</span></div>
+                        <div className="card-header d-flex justify-content-between align-items-center"><h3>방: {room.roomId}</h3><button className="btn btn-sm btn-outline-danger" onClick={handleLeaveRoom}>방 나가기</button></div>
                         <div className="card-body">
-                            <h5 className="card-title">플레이어 ({room.players.length})</h5>
+                            <h5 className="card-title">플레이어 ({room.players.length}) / 목표: {room.targetScore}점</h5>
                             <ul className="list-group mb-3">
                                 {room.players.map((player) => {
                                     const count = voteCounts[player.id] || 0;
                                     return (
-                                        <li key={player.id} className={`list-group-item d-flex justify-content-between align-items-center ${room.turn === player.id ? 'active' : ''}`}>
+                                        <li key={player.persistentId} className={`list-group-item d-flex justify-content-between align-items-center ${room.turn === player.id ? 'active' : ''}`}>
                                             <div>
                                                 {player.name}
                                                 {room.hostId === player.id && <span className="badge bg-primary ms-2">방장</span>}
