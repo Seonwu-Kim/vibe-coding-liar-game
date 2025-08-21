@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // In a production environment, you should restrict this to your frontend's domain
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
@@ -21,7 +21,7 @@ const generateRoomId = () => {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-const resetRoomForNewGame = (room) => {
+const resetRoundState = (room) => {
     room.gameState = 'waiting';
     room.word = null;
     room.liarId = null;
@@ -30,14 +30,13 @@ const resetRoomForNewGame = (room) => {
     room.votes = {};
     room.voteResult = null;
     room.liarGuessResult = null;
-    // Scores are intentionally not reset to accumulate over rounds
     return room;
 }
 
 io.on('connection', (socket) => {
   console.log('a user connected:', socket.id);
 
-  socket.on('createRoom', ({ playerName, category }) => {
+  socket.on('createRoom', ({ playerName, category, targetScore }) => {
     const roomId = generateRoomId();
     const player = { id: socket.id, name: playerName, score: 0 };
     rooms[roomId] = {
@@ -45,7 +44,8 @@ io.on('connection', (socket) => {
       players: [player],
       hostId: socket.id,
       category,
-      ...resetRoomForNewGame({})
+      targetScore: targetScore || 5, // Default target score is 5
+      ...resetRoundState({})
     };
     socket.join(roomId);
     io.to(roomId).emit('updateRoom', rooms[roomId]);
@@ -61,13 +61,11 @@ io.on('connection', (socket) => {
   });
 
   socket.on('startGame', ({ roomId }) => {
-    console.log(`[RECEIVE] startGame event for room: ${roomId} from host: ${socket.id}`);
     let room = rooms[roomId];
-    if (!room || room.hostId !== socket.id) return socket.emit('error', { message: 'Only the host can start the game.' });
+    if (!room || room.hostId !== socket.id) return;
     if (room.players.length < 2) return socket.emit('error', { message: 'Need at least 2 players to start.' });
 
-    // Reset state for a new round, but keep players and scores
-    room = resetRoomForNewGame(room);
+    room = resetRoundState(room);
     room.gameState = 'playing';
 
     const liarIndex = Math.floor(Math.random() * room.players.length);
@@ -90,6 +88,18 @@ io.on('connection', (socket) => {
     });
     io.to(roomId).emit('updateRoom', room);
   });
+
+  const endRound = (roomId) => {
+    const room = rooms[roomId];
+    const winner = room.players.find(p => p.score >= room.targetScore);
+
+    if (winner) {
+        room.gameState = 'finished';
+    } else {
+        room.gameState = 'roundOver';
+    }
+    io.to(roomId).emit('updateRoom', room);
+  }
 
   socket.on('submitHint', ({ roomId, hint }) => {
     const room = rooms[roomId];
@@ -122,10 +132,11 @@ io.on('connection', (socket) => {
         if (isLiar) {
             room.players.forEach(p => { if (p.id !== room.liarId) p.score += 1; });
             room.gameState = 'liarGuess';
+            io.to(roomId).emit('updateRoom', room);
         } else {
             const liar = room.players.find(p => p.id === room.liarId);
             if(liar) liar.score += 1;
-            room.gameState = 'finished';
+            endRound(roomId);
         }
     }
     io.to(roomId).emit('updateRoom', room);
@@ -141,12 +152,24 @@ io.on('connection', (socket) => {
         if (liar) liar.score += 1;
     }
     room.liarGuessResult = { guess, correct: correctGuess };
-    room.gameState = 'finished';
-    io.to(roomId).emit('updateRoom', room);
+    endRound(roomId);
+  });
+
+  socket.on('restartGame', ({ roomId }) => {
+    const room = rooms[roomId];
+    if (!room || room.hostId !== socket.id) return;
+
+    // Reset scores for all players
+    room.players.forEach(p => p.score = 0);
+    // Reset round state and set to waiting
+    rooms[roomId] = {
+        ...room,
+        ...resetRoundState({})
+    };
+    io.to(roomId).emit('updateRoom', rooms[roomId]);
   });
 
   socket.on('disconnect', () => {
-    console.log('user disconnected:', socket.id);
     const roomId = Object.keys(rooms).find(key => rooms[key] && rooms[key].players.some(p => p.id === socket.id));
     if (!roomId || !rooms[roomId]) return;
     rooms[roomId].players = rooms[roomId].players.filter(p => p.id !== socket.id);

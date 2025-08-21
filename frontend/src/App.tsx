@@ -17,7 +17,8 @@ interface Room {
   players: Player[];
   hostId: string;
   category: string;
-  gameState: 'waiting' | 'playing' | 'voting' | 'liarGuess' | 'finished';
+  targetScore: number;
+  gameState: 'waiting' | 'playing' | 'voting' | 'liarGuess' | 'roundOver' | 'finished';
   word: string | null;
   liarId: string | null;
   turn: string | null;
@@ -78,10 +79,11 @@ const Lobby = () => {
     const [playerName, setPlayerName] = useState('');
     const [roomId, setRoomId] = useState('');
     const [category, setCategory] = useState('영화');
+    const [targetScore, setTargetScore] = useState(5);
 
     const handleCreateRoom = () => {
         if (!playerName) { alert('이름을 입력해주세요.'); return; }
-        socket.emit('createRoom', { playerName, category });
+        socket.emit('createRoom', { playerName, category, targetScore });
     };
 
     const handleJoinRoom = () => {
@@ -100,12 +102,17 @@ const Lobby = () => {
                         <div className="card-body">
                             <h5 className="card-title">새로운 방 만들기</h5>
                             <div className="input-group mb-3">
+                                <label className="input-group-text">주제</label>
                                 <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
                                     <option value="영화">영화</option>
                                     <option value="음식">음식</option>
                                     <option value="동물">동물</option>
                                     <option value="IT용어">IT용어</option>
                                 </select>
+                            </div>
+                            <div className="input-group mb-3">
+                                <label className="input-group-text">목표 점수</label>
+                                <input type="number" className="form-control" value={targetScore} onChange={e => setTargetScore(parseInt(e.target.value, 10))} min="1" />
                                 <button className="btn btn-primary" onClick={handleCreateRoom}>만들기</button>
                             </div>
                         </div>
@@ -139,7 +146,6 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
     const [liarGuess, setLiarGuess] = useState('');
     const chatBodyRef = useRef<HTMLDivElement>(null);
 
-    // Calculate vote counts from the votes object
     const voteCounts: { [key: string]: number } = {};
     if (room.votes) {
         for (const votedPlayerId of Object.values(room.votes)) {
@@ -153,7 +159,8 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
         }
     }, [room.hints, room.voteResult, room.liarGuessResult]);
 
-    const handleStartGame = () => socket.emit('startGame', { roomId: room.roomId });
+    const handleStartNextRound = () => socket.emit('startGame', { roomId: room.roomId });
+    const handleRestartGame = () => socket.emit('restartGame', { roomId: room.roomId });
     const handleSubmitHint = () => {
         if (!hint.trim()) return alert('힌트를 입력해주세요.');
         socket.emit('submitHint', { roomId: room.roomId, hint });
@@ -167,6 +174,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
     };
 
     const turnPlayer = room.players.find(p => p.id === room.turn);
+    const winner = room.players.find(p => p.score >= room.targetScore);
 
     return (
         <div className="container mt-4">
@@ -205,9 +213,10 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                                     <p><strong>추측이 {room.liarGuessResult.correct ? '정확했습니다!' : '틀렸습니다.'}</strong></p>
                                 </div>
                             )}
-                             {room.gameState === 'finished' && (
+                             {(room.gameState === 'roundOver' || room.gameState === 'finished') && (
                                 <div className="alert alert-info mt-3">
-                                    <h4>게임 종료!</h4>
+                                    <h4>{room.gameState === 'finished' ? '최종 우승!' : '라운드 종료!'}</h4>
+                                    {room.gameState === 'finished' && winner && <p><strong>{winner.name}</strong> 님이 목표 점수 {room.targetScore}점에 도달하여 최종 우승했습니다!</p>}
                                     <p>정답은 '<strong>{room.word}</strong>'였습니다.</p>
                                 </div>
                             )}
@@ -225,7 +234,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                 <div className="col-md-4">
                     {/* Player List and Controls */}
                     <div className="card">
-                        <div className="card-header d-flex justify-content-between align-items-center"><h3>방: {room.roomId}</h3><span>점수</span></div>
+                        <div className="card-header d-flex justify-content-between align-items-center"><h3>방: {room.roomId}</h3><span>목표: {room.targetScore}점</span></div>
                         <div className="card-body">
                             <h5 className="card-title">플레이어 ({room.players.length})</h5>
                             <ul className="list-group mb-3">
@@ -238,7 +247,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                                                 {room.hostId === player.id && <span className="badge bg-primary ms-2">방장</span>}
                                                 {count > 0 && <span className="badge bg-danger ms-2">{count} 표</span>}
                                             </div>
-                                            <span className="badge bg-info">{player.score}</span>
+                                            <span className="badge bg-info">{player.score}점</span>
                                             {room.gameState === 'voting' && (
                                                 <button className="btn btn-sm btn-warning" onClick={() => handleVote(player.id)} disabled={hasVoted || player.id === socket.id}>
                                                     투표
@@ -248,9 +257,19 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                                     );
                                 })}
                             </ul>
-                            {isHost && (room.gameState === 'waiting' || room.gameState === 'finished') && (
-                                <button className="btn btn-success w-100" onClick={handleStartGame} disabled={room.players.length < 2}>
-                                    {room.gameState === 'finished' ? '다시하기' : '게임 시작'} ({room.players.length < 2 ? '플레이어 더 필요' : '준비 완료'})
+                            {isHost && room.gameState === 'waiting' && (
+                                <button className="btn btn-success w-100" onClick={handleStartNextRound} disabled={room.players.length < 2}>
+                                    게임 시작 ({room.players.length < 2 ? '플레이어 더 필요' : '준비 완료'})
+                                </button>
+                            )}
+                            {isHost && room.gameState === 'roundOver' && (
+                                <button className="btn btn-info w-100" onClick={handleStartNextRound}>
+                                    다음 라운드 시작
+                                </button>
+                            )}
+                            {isHost && room.gameState === 'finished' && (
+                                <button className="btn btn-danger w-100" onClick={handleRestartGame}>
+                                    완전히 새로 시작 (점수 초기화)
                                 </button>
                             )}
                         </div>
