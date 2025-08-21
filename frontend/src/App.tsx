@@ -139,6 +139,14 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
     const [liarGuess, setLiarGuess] = useState('');
     const chatBodyRef = useRef<HTMLDivElement>(null);
 
+    // Calculate vote counts from the votes object
+    const voteCounts: { [key: string]: number } = {};
+    if (room.votes) {
+        for (const votedPlayerId of Object.values(room.votes)) {
+            voteCounts[votedPlayerId] = (voteCounts[votedPlayerId] || 0) + 1;
+        }
+    }
+
     useEffect(() => {
         if (chatBodyRef.current) {
             chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
@@ -221,21 +229,24 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                         <div className="card-body">
                             <h5 className="card-title">플레이어 ({room.players.length})</h5>
                             <ul className="list-group mb-3">
-                                {room.players.map((player) => (
-                                    <li key={player.id} className={`list-group-item d-flex justify-content-between align-items-center ${room.turn === player.id ? 'active' : ''}`}>
-                                        <div>
-                                            {player.name}
-                                            {room.hostId === player.id && <span className="badge bg-primary ms-2">방장</span>}
-                                            {room.votes && Object.values(room.votes).includes(player.id) && <span className="badge bg-danger ms-2">지목됨</span>}
-                                        </div>
-                                        <span className="badge bg-info">{player.score}</span>
-                                        {room.gameState === 'voting' && (
-                                            <button className="btn btn-sm btn-warning" onClick={() => handleVote(player.id)} disabled={hasVoted || player.id === socket.id}>
-                                                투표
-                                            </button>
-                                        )}
-                                    </li>
-                                ))}
+                                {room.players.map((player) => {
+                                    const count = voteCounts[player.id] || 0;
+                                    return (
+                                        <li key={player.id} className={`list-group-item d-flex justify-content-between align-items-center ${room.turn === player.id ? 'active' : ''}`}>
+                                            <div>
+                                                {player.name}
+                                                {room.hostId === player.id && <span className="badge bg-primary ms-2">방장</span>}
+                                                {count > 0 && <span className="badge bg-danger ms-2">{count} 표</span>}
+                                            </div>
+                                            <span className="badge bg-info">{player.score}</span>
+                                            {room.gameState === 'voting' && (
+                                                <button className="btn btn-sm btn-warning" onClick={() => handleVote(player.id)} disabled={hasVoted || player.id === socket.id}>
+                                                    투표
+                                                </button>
+                                            )}
+                                        </li>
+                                    );
+                                })}
                             </ul>
                             {isHost && (room.gameState === 'waiting' || room.gameState === 'finished') && (
                                 <button className="btn btn-success w-100" onClick={handleStartGame} disabled={room.players.length < 2}>
