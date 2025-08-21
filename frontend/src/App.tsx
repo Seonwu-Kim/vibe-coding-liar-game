@@ -22,7 +22,7 @@ interface Room {
   liarId: string | null;
   turn: string | null;
   hints: Hint[];
-  votes?: { [key: string]: string }; // Make votes optional to prevent crash
+  votes?: { [key: string]: string };
   voteResult: VoteResult | null;
   liarGuessResult: LiarGuessResult | null;
 }
@@ -46,7 +46,7 @@ function App() {
             console.log('✅ [RECEIVE] updateRoom:', updatedRoom);
             setRoom(updatedRoom);
             if (updatedRoom.gameState === 'waiting') {
-                setPlayerInfo(null); // Reset player info for new game
+                setPlayerInfo(null);
             }
             setError('');
         });
@@ -80,12 +80,12 @@ const Lobby = () => {
     const [category, setCategory] = useState('영화');
 
     const handleCreateRoom = () => {
-        if (!playerName) { alert('Please enter your name.'); return; }
+        if (!playerName) { alert('이름을 입력해주세요.'); return; }
         socket.emit('createRoom', { playerName, category });
     };
 
     const handleJoinRoom = () => {
-        if (!playerName || !roomId) { alert('Please enter your name and a room ID.'); return; }
+        if (!playerName || !roomId) { alert('이름과 방 ID를 입력해주세요.'); return; }
         socket.emit('joinRoom', { playerName, roomId });
     };
 
@@ -93,12 +93,12 @@ const Lobby = () => {
         <div className="container text-center"> 
             <div className="row justify-content-center">
                 <div className="col-md-6">
-                    <h1 className="my-4">Liar Game</h1>
+                    <h1 className="my-4">라이어 게임</h1>
                     <div className="card p-4">
-                        <h2 className="mb-4">Join a Game</h2>
-                        <input type="text" className="form-control mb-3" placeholder="Enter your name" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
+                        <h2 className="mb-4">게임 참가하기</h2>
+                        <input type="text" className="form-control mb-3" placeholder="이름을 입력하세요" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                         <div className="card-body">
-                            <h5 className="card-title">Create a New Room</h5>
+                            <h5 className="card-title">새로운 방 만들기</h5>
                             <div className="input-group mb-3">
                                 <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
                                     <option value="영화">영화</option>
@@ -106,15 +106,15 @@ const Lobby = () => {
                                     <option value="동물">동물</option>
                                     <option value="IT용어">IT용어</option>
                                 </select>
-                                <button className="btn btn-primary" onClick={handleCreateRoom}>Create</button>
+                                <button className="btn btn-primary" onClick={handleCreateRoom}>만들기</button>
                             </div>
                         </div>
                         <hr />
                         <div className="card-body">
-                            <h5 className="card-title">Join an Existing Room</h5>
+                            <h5 className="card-title">기존 방에 참가하기</h5>
                             <div className="input-group mb-3">
-                                <input type="text" className="form-control" placeholder="Enter Room ID" value={roomId} onChange={(e) => setRoomId(e.target.value.toUpperCase())} />
-                                <button className="btn btn-secondary" onClick={handleJoinRoom}>Join</button>
+                                <input type="text" className="form-control" placeholder="방 ID를 입력하세요" value={roomId} onChange={(e) => setRoomId(e.target.value.toUpperCase())} />
+                                <button className="btn btn-secondary" onClick={handleJoinRoom}>참가</button>
                             </div>
                         </div>
                     </div>
@@ -145,18 +145,15 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
         }
     }, [room.hints, room.voteResult, room.liarGuessResult]);
 
-    const handleStartGame = () => {
-        console.log('▶️ [EMIT] startGame:', { roomId: room.roomId });
-        socket.emit('startGame', { roomId: room.roomId });
-    };
+    const handleStartGame = () => socket.emit('startGame', { roomId: room.roomId });
     const handleSubmitHint = () => {
-        if (!hint.trim()) return alert('Please enter a hint.');
+        if (!hint.trim()) return alert('힌트를 입력해주세요.');
         socket.emit('submitHint', { roomId: room.roomId, hint });
         setHint('');
     };
     const handleVote = (votedPlayerId: string) => socket.emit('submitVote', { roomId: room.roomId, votedPlayerId });
     const handleLiarGuess = () => {
-        if (!liarGuess.trim()) return alert('Please enter your guess.');
+        if (!liarGuess.trim()) return alert('추측 단어를 입력해주세요.');
         socket.emit('submitLiarGuess', { roomId: room.roomId, guess: liarGuess });
         setLiarGuess('');
     };
@@ -170,49 +167,49 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                     {/* Role and Word Display */}
                     {room.gameState !== 'waiting' && playerInfo && (
                         <div className="card mb-3">
-                            <div className="card-header"><h2>Your Role</h2></div>
+                            <div className="card-header"><h2>나의 역할</h2></div>
                             <div className="card-body">
-                                <h3 className="card-title">You are a <span className={playerInfo.role === 'Liar' ? 'text-danger' : 'text-success'}>{playerInfo.role}</span></h3>
-                                <p className="card-text fs-4">Category: {playerInfo.category}</p>
-                                {playerInfo.role === 'Citizen' && <p className="card-text fs-4">Word: <strong>{playerInfo.word}</strong></p>}
+                                <h3 className="card-title">당신은 <span className={playerInfo.role === 'Liar' ? 'text-danger' : 'text-success'}>{playerInfo.role === 'Liar' ? '라이어' : '시민'}</span> 입니다</h3>
+                                <p className="card-text fs-4">주제: {playerInfo.category}</p>
+                                {playerInfo.role === 'Citizen' && <p className="card-text fs-4">제시어: <strong>{playerInfo.word}</strong></p>}
                             </div>
                         </div>
                     )}
 
                     {/* Main Display Area */}
                     <div className="card">
-                        <div className="card-header"><h4>Game Board</h4></div>
+                        <div className="card-header"><h4>게임 현황</h4></div>
                         <div className="card-body chat-box" ref={chatBodyRef}>
                             {room.hints.map((h, index) => <p key={index} className="card-text"><strong>{h.player.name}:</strong> {h.hint}</p>)}
-                            {room.gameState === 'playing' && turnPlayer && <p className='text-muted'><em>It's {turnPlayer.name}'s turn...</em></p>}
-                            {room.gameState === 'voting' && <p className='text-primary'><em>All hints are in! Please vote for the player you think is the Liar.</em></p>}
+                            {room.gameState === 'playing' && turnPlayer && <p className='text-muted'><em>{turnPlayer.name}님의 차례입니다...</em></p>}
+                            {room.gameState === 'voting' && <p className='text-primary'><em>모든 힌트가 제출되었습니다! 라이어라고 생각하는 사람에게 투표하세요.</em></p>}
                             {room.voteResult && (
                                 <div className={`alert mt-3 ${room.voteResult.isLiar ? 'alert-success' : 'alert-danger'}`}>
-                                    <h5>Vote Result</h5>
-                                    <p>{room.voteResult.mostVotedPlayer.name} was voted out.</p>
-                                    <p><strong>They were {room.voteResult.isLiar ? 'the LIAR!' : 'a CITIZEN.'}</strong></p>
+                                    <h5>투표 결과</h5>
+                                    <p>{room.voteResult.mostVotedPlayer.name}님이 지목되었습니다.</p>
+                                    <p><strong>그는 {room.voteResult.isLiar ? '라이어였습니다!' : '시민이었습니다.'}</strong></p>
                                 </div>
                             )}
                             {room.liarGuessResult && (
                                 <div className={`alert mt-3 ${room.liarGuessResult.correct ? 'alert-success' : 'alert-danger'}`}>
-                                    <h5>Liar's Guess</h5>
-                                    <p>The Liar guessed: "{room.liarGuessResult.guess}"</p>
-                                    <p><strong>The guess was {room.liarGuessResult.correct ? 'CORRECT!' : 'INCORRECT.'}</strong></p>
+                                    <h5>라이어의 추측</h5>
+                                    <p>라이어의 추측: "{room.liarGuessResult.guess}"</p>
+                                    <p><strong>추측이 {room.liarGuessResult.correct ? '정확했습니다!' : '틀렸습니다.'}</strong></p>
                                 </div>
                             )}
                              {room.gameState === 'finished' && (
                                 <div className="alert alert-info mt-3">
-                                    <h4>Game Over!</h4>
-                                    <p>The correct word was: <strong>{room.word}</strong></p>
+                                    <h4>게임 종료!</h4>
+                                    <p>정답은 '<strong>{room.word}</strong>'였습니다.</p>
                                 </div>
                             )}
                         </div>
                         {/* Action Footer */}
                         {room.gameState === 'playing' && myTurn && (
-                            <div className="card-footer"><div className="input-group"><input type="text" className="form-control" placeholder="Enter your hint" value={hint} onChange={e => setHint(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSubmitHint()} /><button className="btn btn-primary" onClick={handleSubmitHint}>Submit</button></div></div>
+                            <div className="card-footer"><div className="input-group"><input type="text" className="form-control" placeholder="힌트를 입력하세요" value={hint} onChange={e => setHint(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSubmitHint()} /><button className="btn btn-primary" onClick={handleSubmitHint}>제출</button></div></div>
                         )}
                         {room.gameState === 'liarGuess' && amLiar && (
-                            <div className="card-footer"><div className="input-group"><input type="text" className="form-control" placeholder="Guess the word!" value={liarGuess} onChange={e => setLiarGuess(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleLiarGuess()} /><button className="btn btn-danger" onClick={handleLiarGuess}>Final Guess</button></div></div>
+                            <div className="card-footer"><div className="input-group"><input type="text" className="form-control" placeholder="단어를 맞혀보세요!" value={liarGuess} onChange={e => setLiarGuess(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleLiarGuess()} /><button className="btn btn-danger" onClick={handleLiarGuess}>최종 추측</button></div></div>
                         )}
                     </div>
                 </div>
@@ -220,20 +217,21 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                 <div className="col-md-4">
                     {/* Player List and Controls */}
                     <div className="card">
-                        <div className="card-header d-flex justify-content-between align-items-center"><h3>Room: {room.roomId}</h3><span>Scores</span></div>
+                        <div className="card-header d-flex justify-content-between align-items-center"><h3>방: {room.roomId}</h3><span>점수</span></div>
                         <div className="card-body">
+                            <h5 className="card-title">플레이어 ({room.players.length})</h5>
                             <ul className="list-group mb-3">
                                 {room.players.map((player) => (
                                     <li key={player.id} className={`list-group-item d-flex justify-content-between align-items-center ${room.turn === player.id ? 'active' : ''}`}>
                                         <div>
                                             {player.name}
-                                            {room.hostId === player.id && <span className="badge bg-primary ms-2">Host</span>}
-                                            {room.votes && Object.values(room.votes).includes(player.id) && <span className="badge bg-danger ms-2">Voted Against</span>}
+                                            {room.hostId === player.id && <span className="badge bg-primary ms-2">방장</span>}
+                                            {room.votes && Object.values(room.votes).includes(player.id) && <span className="badge bg-danger ms-2">지목됨</span>}
                                         </div>
                                         <span className="badge bg-info">{player.score}</span>
                                         {room.gameState === 'voting' && (
                                             <button className="btn btn-sm btn-warning" onClick={() => handleVote(player.id)} disabled={hasVoted || player.id === socket.id}>
-                                                Vote
+                                                투표
                                             </button>
                                         )}
                                     </li>
@@ -241,7 +239,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                             </ul>
                             {isHost && (room.gameState === 'waiting' || room.gameState === 'finished') && (
                                 <button className="btn btn-success w-100" onClick={handleStartGame} disabled={room.players.length < 2}>
-                                    {room.gameState === 'finished' ? 'Play Again' : 'Start Game'} ({room.players.length < 2 ? `Need more players` : 'Ready'})
+                                    {room.gameState === 'finished' ? '다시하기' : '게임 시작'} ({room.players.length < 2 ? '플레이어 더 필요' : '준비 완료'})
                                 </button>
                             )}
                         </div>
