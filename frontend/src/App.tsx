@@ -125,6 +125,10 @@ const Lobby = () => {
                                     <option value="음식">음식</option>
                                     <option value="동물">동물</option>
                                     <option value="IT용어">IT용어</option>
+                                    <option value="롤 챔피언">롤 챔피언</option>
+                                    <option value="게임">게임</option>
+                                    <option value="연예인">연예인</option>
+                                    <option value="직업">직업</option>
                                 </select>
                             </div>
                             <div className="input-group mb-3">
