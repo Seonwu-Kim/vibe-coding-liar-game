@@ -21,6 +21,8 @@ interface Room {
   currentCategory: string | null;
   targetScore: number;
   gameMode: 'normal' | 'fool';
+  liarGuessType: 'text' | 'card';
+  liarGuessCards: string[];
   gameState: 'waiting' | 'playing' | 'voting' | 'liarGuess' | 'roundOver' | 'finished';
   word: string | null;
   liarId: string | null;
@@ -149,14 +151,16 @@ const GameSettings = ({ room, isHost }: { room: Room, isHost: boolean }) => {
     const [settings, setSettings] = useState({
         selectedCategories: room.selectedCategories,
         targetScore: room.targetScore,
-        gameMode: room.gameMode
+        gameMode: room.gameMode,
+        liarGuessType: room.liarGuessType
     });
 
     useEffect(() => {
         setSettings({
             selectedCategories: room.selectedCategories,
             targetScore: room.targetScore,
-            gameMode: room.gameMode
+            gameMode: room.gameMode,
+            liarGuessType: room.liarGuessType
         });
     }, [room]);
 
@@ -186,6 +190,7 @@ const GameSettings = ({ room, isHost }: { room: Room, isHost: boolean }) => {
                     <h6>선택된 주제: {room.selectedCategories.join(', ')}</h6>
                     <h6>목표 점수: {room.targetScore}</h6>
                     <h6>게임 모드: {room.gameMode === 'fool' ? '바보 모드' : '일반 모드'}</h6>
+                    <h6>라이어 추측 방식: {room.liarGuessType === 'card' ? '카드 선택' : '텍스트 입력'}</h6>
                 </div>
             </div>
         );
@@ -219,6 +224,19 @@ const GameSettings = ({ room, isHost }: { room: Room, isHost: boolean }) => {
                     <div className="form-check form-check-inline">
                         <input className="form-check-input" type="radio" name="gameMode" id="foolMode" value="fool" checked={settings.gameMode === 'fool'} onChange={e => handleSettingsChange({ gameMode: e.target.value as 'normal' | 'fool' })} />
                         <label className="form-check-label" htmlFor="foolMode">바보 모드</label>
+                    </div>
+                </div>
+            </div>
+            <div className="mb-3">
+                <label className="form-label">라이어 추측 방식</label>
+                <div className="d-flex">
+                    <div className="form-check form-check-inline">
+                        <input className="form-check-input" type="radio" name="liarGuessType" id="textGuess" value="text" checked={settings.liarGuessType === 'text'} onChange={e => handleSettingsChange({ liarGuessType: e.target.value as 'text' | 'card' })} />
+                        <label className="form-check-label" htmlFor="textGuess">텍스트 입력</label>
+                    </div>
+                    <div className="form-check form-check-inline">
+                        <input className="form-check-input" type="radio" name="liarGuessType" id="cardGuess" value="card" checked={settings.liarGuessType === 'card'} onChange={e => handleSettingsChange({ liarGuessType: e.target.value as 'text' | 'card' })} />
+                        <label className="form-check-label" htmlFor="cardGuess">카드 선택</label>
                     </div>
                 </div>
             </div>
@@ -270,9 +288,9 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo, wasLiar, timer })
         setHint('');
     };
     const handleVote = (votedPlayerId: string) => socket.emit('submitVote', { roomId: room.roomId, votedPlayerId });
-    const handleLiarGuess = () => {
-        if (!liarGuess.trim()) return alert('추측 단어를 입력해주세요.');
-        socket.emit('submitLiarGuess', { roomId: room.roomId, guess: liarGuess });
+    const handleLiarGuess = (guess: string) => {
+        if (!guess.trim()) return alert('추측 단어를 입력해주세요.');
+        socket.emit('submitLiarGuess', { roomId: room.roomId, guess });
         setLiarGuess('');
     };
     const handleLeaveRoom = () => {
@@ -342,7 +360,25 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo, wasLiar, timer })
                                     <div className="card-footer"><div className="input-group"><input type="text" className="form-control" placeholder="힌트를 입력하세요" value={hint} onChange={e => setHint(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleSubmitHint()} /><button className="btn btn-primary" onClick={handleSubmitHint}>제출</button></div></div>
                                 )}
                                 {showLiarGuessInput && (
-                                    <div className="card-footer"><div className="input-group"><input type="text" className="form-control" placeholder="단어를 맞혀보세요!" value={liarGuess} onChange={e => setLiarGuess(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleLiarGuess()} /><button className="btn btn-danger" onClick={handleLiarGuess}>최종 추측</button></div></div>
+                                    <div className="card-footer">
+                                        {room.liarGuessType === 'card' ? (
+                                            <div>
+                                                <p className="text-center mb-2">제시어라고 생각되는 카드를 고르세요!</p>
+                                                <div className="d-flex flex-wrap justify-content-center gap-2">
+                                                    {room.liarGuessCards.map(cardWord => (
+                                                        <button key={cardWord} className="btn btn-outline-primary" onClick={() => handleLiarGuess(cardWord)}>
+                                                            {cardWord}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="input-group">
+                                                <input type="text" className="form-control" placeholder="단어를 맞혀보세요!" value={liarGuess} onChange={e => setLiarGuess(e.target.value)} onKeyPress={e => e.key === 'Enter' && handleLiarGuess(liarGuess)} />
+                                                <button className="btn btn-danger" onClick={() => handleLiarGuess(liarGuess)}>최종 추측</button>
+                                            </div>
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </>
@@ -363,6 +399,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo, wasLiar, timer })
                         </div>
                         <div className="card-body">
                             <h5 className="card-title">플레이어 ({room.players.length}) / 목표: {room.targetScore}점</h5>
+                            <p className="card-subtitle mb-2 text-muted">게임 모드: {room.gameMode === 'fool' ? '바보 모드' : '일반 모드'}</p>
                             <ul className="list-group mb-3">
                                 {room.players.map((player) => {
                                     const count = voteCounts[player.id] || 0;

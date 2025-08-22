@@ -14,109 +14,90 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3001;
-const HINT_TIMER_DURATION = 30; // seconds
-const VOTE_TIMER_DURATION = 20; // seconds
 
 const wordsData = JSON.parse(fs.readFileSync('./words.json', 'utf8'));
 const rooms = {};
 
-// --- Timer Management ---
-const activeTimers = {};
-
-function startTimer(roomId, duration, onEnd) {
-    if (activeTimers[roomId]) {
-        clearInterval(activeTimers[roomId]);
-    }
-
-    const room = rooms[roomId];
-    if (!room) return;
-
-    room.timer = duration;
-    io.to(roomId).emit('timerUpdate', room.timer);
-
-    activeTimers[roomId] = setInterval(() => {
-        room.timer -= 1;
-        io.to(roomId).emit('timerUpdate', room.timer);
-
-        if (room.timer <= 0) {
-            clearInterval(activeTimers[roomId]);
-            delete activeTimers[roomId];
-            onEnd();
-        }
-    }, 1000);
-}
-
-function stopTimer(roomId) {
-    if (activeTimers[roomId]) {
-        clearInterval(activeTimers[roomId]);
-        delete activeTimers[roomId];
-        if(rooms[roomId]) rooms[roomId].timer = null;
-        io.to(roomId).emit('timerUpdate', null);
-    }
-}
-
-// --- Game Logic ---
-
 const generateRoomId = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 const generatePersistentId = () => crypto.randomUUID();
 
-const getDefaultRoomSettings = () => ({ /* ...omitted... */ });
-const resetRoundState = (room) => { /* ...omitted... */ return room; };
+const getDefaultRoomSettings = () => ({
+    selectedCategories: ['영화'],
+    targetScore: 5,
+    gameMode: 'normal',
+    liarGuessType: 'text' // text, card
+});
+
+const resetRoundState = (room) => {
+    room.gameState = 'waiting';
+    room.word = null;
+    room.liarId = null;
+    room.turn = null;
+    room.hints = [];
+    room.votes = {};
+    room.voteResult = null;
+    room.liarGuessResult = null;
+    room.currentCategory = null;
+    room.liarGuessCards = [];
+    return room;
+}
 
 io.on('connection', (socket) => {
   const createPlayer = (name) => ({ id: socket.id, persistentId: generatePersistentId(), name, score: 0 });
 
   socket.on('createRoom', ({ playerName }) => {
-    // ... (create room logic)
+    const roomId = generateRoomId();
+    const player = createPlayer(playerName);
+    rooms[roomId] = {
+      roomId,
+      players: [player],
+      hostId: socket.id,
+      ...getDefaultRoomSettings(),
+      ...resetRoundState({})
+    };
+    socket.join(roomId);
+    io.to(roomId).emit('updateRoom', rooms[roomId]);
   });
 
   socket.on('updateSettings', ({ roomId, newSettings }) => {
-    // ... (update settings logic)
+    const room = rooms[roomId];
+    if (!room || room.hostId !== socket.id || room.gameState !== 'waiting') return;
+
+    if (newSettings.selectedCategories) room.selectedCategories = newSettings.selectedCategories;
+    if (newSettings.targetScore) room.targetScore = newSettings.targetScore;
+    if (newSettings.gameMode) room.gameMode = newSettings.gameMode;
+    if (newSettings.liarGuessType) room.liarGuessType = newSettings.liarGuessType;
+
+    io.to(roomId).emit('updateRoom', room);
   });
 
-  socket.on('joinRoom', ({ playerName, roomId }) => {
-    // ... (join room logic)
-  });
-
-  socket.on('reconnectPlayer', ({ persistentId, roomId }) => {
-    // ... (reconnect logic)
-  });
+  // ... other handlers like joinRoom, reconnectPlayer ...
 
   socket.on('startGame', ({ roomId }) => {
-    let room = rooms[roomId];
-    // ... (start game setup)
-
-    // Start hint timer for the first player
-    startTimer(roomId, HINT_TIMER_DURATION, () => handleTimeout(roomId, 'hint'));
-
-    io.to(roomId).emit('updateRoom', room);
+    // ... startGame logic ...
   });
 
-  const endRound = (roomId) => { /* ...omitted... */ };
+  const endRound = (roomId) => {
+    // ... endRound logic ...
+  }
 
   socket.on('submitHint', ({ roomId, hint }) => {
-    const room = rooms[roomId];
-    if (!room || room.gameState !== 'playing' || room.turn !== socket.id) return;
-    
-    const player = room.players.find(p => p.id === socket.id);
-    room.hints.push({ player, hint });
-
-    const currentPlayerIndex = room.players.findIndex(p => p.id === socket.id);
-    const nextPlayerIndex = (currentPlayerIndex + 1) % room.players.length;
-    room.turn = room.players[nextPlayerIndex].id;
-
-    if (room.hints.length === room.players.length) {
-        room.gameState = 'voting';
-        room.turn = null;
-        stopTimer(roomId);
-        startTimer(roomId, VOTE_TIMER_DURATION, () => handleTimeout(roomId, 'vote'));
-    } else {
-        // Reset timer for the next player
-        startTimer(roomId, HINT_TIMER_DURATION, () => handleTimeout(roomId, 'hint'));
-    }
-
-    io.to(roomId).emit('updateRoom', room);
+    // ... submitHint logic ...
   });
+
+  const generateLiarGuessCards = (room) => {
+    const correctWord = room.word;
+    const categoryWords = wordsData[room.currentCategory];
+    const decoys = categoryWords.filter(w => w !== correctWord);
+    
+    // Shuffle decoys and pick 5
+    const shuffledDecoys = decoys.sort(() => 0.5 - Math.random());
+    const selectedDecoys = shuffledDecoys.slice(0, 5);
+
+    const cards = [...selectedDecoys, correctWord];
+    // Shuffle the final cards
+    room.liarGuessCards = cards.sort(() => 0.5 - Math.random());
+  };
 
   socket.on('submitVote', ({ roomId, votedPlayerId }) => {
     const room = rooms[roomId];
@@ -124,46 +105,47 @@ io.on('connection', (socket) => {
     room.votes[socket.id] = votedPlayerId;
 
     if (Object.keys(room.votes).length === room.players.length) {
-        stopTimer(roomId);
-        tallyVotes(roomId);
+        const voteCounts = {};
+        Object.values(room.votes).forEach(vote => { voteCounts[vote] = (voteCounts[vote] || 0) + 1; });
+        const mostVotedId = Object.keys(voteCounts).reduce((a, b) => voteCounts[a] > voteCounts[b] ? a : b);
+        const mostVotedPlayer = room.players.find(p => p.id === mostVotedId);
+        const isLiar = mostVotedId === room.liarId;
+        room.voteResult = { mostVotedPlayer, isLiar };
+
+        room.gameState = 'liarGuess';
+        if (isLiar) {
+            room.players.forEach(p => { if (p.id !== room.liarId) p.score += 1; });
+        } else {
+            const liar = room.players.find(p => p.id === room.liarId);
+            if(liar) liar.score += 1;
+        }
+
+        if (room.liarGuessType === 'card') {
+            generateLiarGuessCards(room);
+        }
+
+        const liarSocket = io.sockets.sockets.get(room.liarId);
+        if (liarSocket) liarSocket.emit('youWereTheLiar');
+        io.to(roomId).emit('updateRoom', room);
+
     } else {
         io.to(roomId).emit('updateRoom', room);
     }
   });
 
-  const tallyVotes = (roomId) => {
+  socket.on('submitLiarGuess', ({ roomId, guess }) => {
     const room = rooms[roomId];
-    if (!room) return;
-    // ... (vote tallying logic)
-  };
-
-  const handleTimeout = (roomId, phase) => {
-    const room = rooms[roomId];
-    if (!room) return;
-
-    if (phase === 'hint' && room.gameState === 'playing') {
-        console.log(`Room ${roomId}: Hint timer expired for ${room.turn}`);
-        // Pass the turn to the next player
-        const currentPlayerIndex = room.players.findIndex(p => p.id === room.turn);
-        const nextPlayerIndex = (currentPlayerIndex + 1) % room.players.length;
-        room.turn = room.players[nextPlayerIndex].id;
-
-        if (room.hints.length === room.players.length) { // Should not happen, but as a safeguard
-            room.gameState = 'voting';
-            room.turn = null;
-            startTimer(roomId, VOTE_TIMER_DURATION, () => handleTimeout(roomId, 'vote'));
-        } else {
-            startTimer(roomId, HINT_TIMER_DURATION, () => handleTimeout(roomId, 'hint'));
-        }
-        io.to(roomId).emit('updateRoom', room);
+    if (!room || room.gameState !== 'liarGuess' || socket.id !== room.liarId) return;
+    const correctGuess = guess.trim().toLowerCase() === room.word.toLowerCase();
+    if (correctGuess) {
+        const liar = room.players.find(p => p.id === room.liarId);
+        if (liar) liar.score += 1;
     }
-    else if (phase === 'vote' && room.gameState === 'voting') {
-        console.log(`Room ${roomId}: Vote timer expired.`);
-        tallyVotes(roomId);
-    }
-  };
+    room.liarGuessResult = { guess, correct: correctGuess };
+    endRound(roomId);
+  });
 
-  // ... other handlers (submitLiarGuess, restartGame, disconnect)
+  // ... other handlers like restartGame, disconnect ...
 });
 
 server.listen(PORT, () => {
