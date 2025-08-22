@@ -14,9 +14,18 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3001;
+const HINT_TIMER_DURATION = 30;
+const VOTE_TIMER_DURATION = 20;
 
 const wordsData = JSON.parse(fs.readFileSync('./words.json', 'utf8'));
 const rooms = {};
+
+// --- Timer Management ---
+const activeTimers = {};
+function startTimer(roomId, duration, onEnd) { /* ...omitted... */ }
+function stopTimer(roomId) { /* ...omitted... */ }
+
+// --- Game Logic ---
 
 const generateRoomId = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 const generatePersistentId = () => crypto.randomUUID();
@@ -25,7 +34,8 @@ const getDefaultRoomSettings = () => ({
     selectedCategories: ['영화'],
     targetScore: 5,
     gameMode: 'normal',
-    liarGuessType: 'text' // text, card
+    liarGuessType: 'text',
+    hintType: 'text' // text, drawing
 });
 
 const resetRoundState = (room) => {
@@ -39,6 +49,7 @@ const resetRoundState = (room) => {
     room.liarGuessResult = null;
     room.currentCategory = null;
     room.liarGuessCards = [];
+    stopTimer(room.roomId);
     return room;
 }
 
@@ -53,7 +64,7 @@ io.on('connection', (socket) => {
       players: [player],
       hostId: socket.id,
       ...getDefaultRoomSettings(),
-      ...resetRoundState({})
+      ...resetRoundState({ roomId })
     };
     socket.join(roomId);
     io.to(roomId).emit('updateRoom', rooms[roomId]);
@@ -67,87 +78,41 @@ io.on('connection', (socket) => {
     if (newSettings.targetScore) room.targetScore = newSettings.targetScore;
     if (newSettings.gameMode) room.gameMode = newSettings.gameMode;
     if (newSettings.liarGuessType) room.liarGuessType = newSettings.liarGuessType;
+    if (newSettings.hintType) room.hintType = newSettings.hintType;
 
     io.to(roomId).emit('updateRoom', room);
   });
 
-  // ... other handlers like joinRoom, reconnectPlayer ...
+  // ... other handlers ...
 
-  socket.on('startGame', ({ roomId }) => {
-    // ... startGame logic ...
-  });
-
-  const endRound = (roomId) => {
-    // ... endRound logic ...
-  }
-
-  socket.on('submitHint', ({ roomId, hint }) => {
-    // ... submitHint logic ...
-  });
-
-  const generateLiarGuessCards = (room) => {
-    const correctWord = room.word;
-    const categoryWords = wordsData[room.currentCategory];
-    const decoys = categoryWords.filter(w => w !== correctWord);
+  socket.on('submitHint', ({ roomId, hintData }) => {
+    const room = rooms[roomId];
+    if (!room || room.gameState !== 'playing' || room.turn !== socket.id) return;
     
-    // Shuffle decoys and pick 5
-    const shuffledDecoys = decoys.sort(() => 0.5 - Math.random());
-    const selectedDecoys = shuffledDecoys.slice(0, 5);
+    const player = room.players.find(p => p.id === socket.id);
+    room.hints.push({ 
+        player, 
+        type: hintData.type, // 'text' or 'drawing'
+        content: hintData.content // a string or a data URL
+    });
 
-    const cards = [...selectedDecoys, correctWord];
-    // Shuffle the final cards
-    room.liarGuessCards = cards.sort(() => 0.5 - Math.random());
-  };
+    const currentPlayerIndex = room.players.findIndex(p => p.id === socket.id);
+    const nextPlayerIndex = (currentPlayerIndex + 1) % room.players.length;
+    room.turn = room.players[nextPlayerIndex].id;
 
-  socket.on('submitVote', ({ roomId, votedPlayerId }) => {
-    const room = rooms[roomId];
-    if (!room || room.gameState !== 'voting' || room.votes[socket.id]) return;
-    room.votes[socket.id] = votedPlayerId;
-
-    if (Object.keys(room.votes).length === room.players.length) {
-        const voteCounts = {};
-        Object.values(room.votes).forEach(vote => { voteCounts[vote] = (voteCounts[vote] || 0) + 1; });
-        const mostVotedId = Object.keys(voteCounts).reduce((a, b) => voteCounts[a] > voteCounts[b] ? a : b);
-        const mostVotedPlayer = room.players.find(p => p.id === mostVotedId);
-        const isLiar = mostVotedId === room.liarId;
-        room.voteResult = { mostVotedPlayer, isLiar };
-
-        room.gameState = 'liarGuess';
-        if (isLiar) {
-            room.players.forEach(p => { if (p.id !== room.liarId) p.score += 1; });
-        } else {
-            const liar = room.players.find(p => p.id === room.liarId);
-            if(liar) liar.score += 1;
-        }
-
-        if (room.liarGuessType === 'card') {
-            generateLiarGuessCards(room);
-        }
-
-        const liarSocket = io.sockets.sockets.get(room.liarId);
-        if (liarSocket) liarSocket.emit('youWereTheLiar');
-        io.to(roomId).emit('updateRoom', room);
-
+    if (room.hints.length === room.players.length) {
+        room.gameState = 'voting';
+        room.turn = null;
+        stopTimer(roomId);
+        startTimer(roomId, VOTE_TIMER_DURATION, () => handleTimeout(roomId, 'vote'));
     } else {
-        io.to(roomId).emit('updateRoom', room);
+        startTimer(roomId, HINT_TIMER_DURATION, () => handleTimeout(roomId, 'hint'));
     }
+
+    io.to(roomId).emit('updateRoom', room);
   });
 
-  socket.on('submitLiarGuess', ({ roomId, guess }) => {
-    const room = rooms[roomId];
-    if (!room || room.gameState !== 'liarGuess' || socket.id !== room.liarId) return;
-    const correctGuess = guess.trim().toLowerCase() === room.word.toLowerCase();
-    if (correctGuess) {
-        const liar = room.players.find(p => p.id === room.liarId);
-        if (liar) liar.score += 1;
-    }
-    room.liarGuessResult = { guess, correct: correctGuess };
-    endRound(roomId);
-  });
-
-  // ... other handlers like restartGame, disconnect ...
+  // ... other handlers ...
 });
 
-server.listen(PORT, () => {
-  console.log(`Server listening on *:${PORT}`);
-});
+// ... server.listen ...
