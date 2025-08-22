@@ -188,14 +188,17 @@ io.on('connection', (socket) => {
         if (isLiar) {
             room.players.forEach(p => { if (p.id !== room.liarId) p.score += 1; });
             room.gameState = 'liarGuess';
-            // Send a secret event only to the liar
             const liarSocket = io.sockets.sockets.get(room.liarId);
             if (liarSocket) liarSocket.emit('youWereTheLiar');
             io.to(roomId).emit('updateRoom', room);
         } else {
             const liar = room.players.find(p => p.id === room.liarId);
             if(liar) liar.score += 1;
-            endRound(roomId);
+            // Even if innocent is voted out, give liar a chance to guess
+            room.gameState = 'liarGuess';
+            const liarSocket = io.sockets.sockets.get(room.liarId);
+            if (liarSocket) liarSocket.emit('youWereTheLiar');
+            io.to(roomId).emit('updateRoom', room);
         }
     } else {
         io.to(roomId).emit('updateRoom', room);
