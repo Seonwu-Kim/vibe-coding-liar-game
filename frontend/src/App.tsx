@@ -43,37 +43,29 @@ function App() {
     const [error, setError] = useState('');
 
     useEffect(() => {
-        // Attempt to reconnect if session data exists in localStorage
         const persistentId = localStorage.getItem('liarGamePlayerId');
         const roomId = localStorage.getItem('liarGameRoomId');
         if (persistentId && roomId) {
-            console.log(`Found session data, attempting to reconnect... pId: ${persistentId}, rId: ${roomId}`);
             socket.emit('reconnectPlayer', { persistentId, roomId });
         }
 
         socket.on('connect', () => console.log('Socket connected!', socket.id));
         socket.on('updateRoom', (updatedRoom: Room) => {
-            console.log('✅ [RECEIVE] updateRoom:', updatedRoom);
             setRoom(updatedRoom);
-
-            // Find my player data to store persistentId
             const me = updatedRoom.players.find(p => p.id === socket.id);
             if (me) {
                 localStorage.setItem('liarGamePlayerId', me.persistentId);
                 localStorage.setItem('liarGameRoomId', updatedRoom.roomId);
             }
-
             if (updatedRoom.gameState === 'waiting') {
                 setPlayerInfo(null);
             }
             setError('');
         });
         socket.on('gameStarted', (payload: GameStartPayload) => {
-            console.log('✅ [RECEIVE] gameStarted:', payload);
             setPlayerInfo(payload);
         });
         socket.on('error', (error: { message: string }) => {
-            console.error('❌ [RECEIVE] error:', error.message);
             setError(error.message);
         });
 
@@ -197,6 +189,11 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
         localStorage.removeItem('liarGamePlayerId');
         localStorage.removeItem('liarGameRoomId');
         window.location.reload();
+    };
+    const handleCopyRoomId = () => {
+        navigator.clipboard.writeText(room.roomId).then(() => {
+            alert('방 ID가 복사되었습니다!');
+        });
     };
 
     const turnPlayer = room.players.find(p => p.id === room.turn);
