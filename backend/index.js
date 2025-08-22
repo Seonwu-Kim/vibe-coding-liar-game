@@ -21,6 +21,12 @@ const rooms = {};
 const generateRoomId = () => Math.random().toString(36).substring(2, 8).toUpperCase();
 const generatePersistentId = () => crypto.randomUUID();
 
+const getDefaultRoomSettings = () => ({
+    selectedCategories: ['영화'],
+    targetScore: 5,
+    gameMode: 'normal' // normal, fool
+});
+
 const resetRoundState = (room) => {
     room.gameState = 'waiting';
     room.word = null;
@@ -39,19 +45,29 @@ io.on('connection', (socket) => {
 
   const createPlayer = (name) => ({ id: socket.id, persistentId: generatePersistentId(), name, score: 0 });
 
-  socket.on('createRoom', ({ playerName, selectedCategories, targetScore }) => {
+  socket.on('createRoom', ({ playerName }) => {
     const roomId = generateRoomId();
     const player = createPlayer(playerName);
     rooms[roomId] = {
       roomId,
       players: [player],
       hostId: socket.id,
-      selectedCategories: selectedCategories || ['영화'], // Default to one category
-      targetScore: targetScore || 5,
+      ...getDefaultRoomSettings(),
       ...resetRoundState({})
     };
     socket.join(roomId);
     io.to(roomId).emit('updateRoom', rooms[roomId]);
+  });
+
+  socket.on('updateSettings', ({ roomId, newSettings }) => {
+    const room = rooms[roomId];
+    if (!room || room.hostId !== socket.id || room.gameState !== 'waiting') return;
+
+    if (newSettings.selectedCategories) room.selectedCategories = newSettings.selectedCategories;
+    if (newSettings.targetScore) room.targetScore = newSettings.targetScore;
+    if (newSettings.gameMode) room.gameMode = newSettings.gameMode;
+
+    io.to(roomId).emit('updateRoom', room);
   });
 
   socket.on('joinRoom', ({ playerName, roomId }) => {
@@ -84,7 +100,6 @@ io.on('connection', (socket) => {
     room = resetRoundState(room);
     room.gameState = 'playing';
 
-    // Randomly select a category for this round from the selected list
     const randomCategoryIndex = Math.floor(Math.random() * room.selectedCategories.length);
     const currentCategory = room.selectedCategories[randomCategoryIndex];
     room.currentCategory = currentCategory;
@@ -92,8 +107,26 @@ io.on('connection', (socket) => {
     const liarIndex = Math.floor(Math.random() * room.players.length);
     room.liarId = room.players[liarIndex].id;
     const categoryWords = wordsData[currentCategory];
-    const wordIndex = Math.floor(Math.random() * categoryWords.length);
-    room.word = categoryWords[wordIndex];
+
+    let citizenWord, liarWord;
+
+    if (room.gameMode === 'fool' && categoryWords.length > 1) {
+        const wordIndex1 = Math.floor(Math.random() * categoryWords.length);
+        citizenWord = categoryWords[wordIndex1];
+        
+        let wordIndex2 = Math.floor(Math.random() * categoryWords.length);
+        while (wordIndex1 === wordIndex2) {
+            wordIndex2 = Math.floor(Math.random() * categoryWords.length);
+        }
+        liarWord = categoryWords[wordIndex2];
+    } else {
+        const wordIndex = Math.floor(Math.random() * categoryWords.length);
+        citizenWord = categoryWords[wordIndex];
+        liarWord = null;
+    }
+
+    room.word = citizenWord;
+
     const firstTurnIndex = Math.floor(Math.random() * room.players.length);
     room.turn = room.players[firstTurnIndex].id;
 
@@ -104,7 +137,7 @@ io.on('connection', (socket) => {
         playerSocket.emit('gameStarted', {
             role: isLiar ? 'Liar' : 'Citizen',
             category: currentCategory,
-            word: isLiar ? null : room.word,
+            word: isLiar ? liarWord : citizenWord,
         });
     });
     io.to(roomId).emit('updateRoom', room);
@@ -174,7 +207,7 @@ io.on('connection', (socket) => {
     const room = rooms[roomId];
     if (!room || room.hostId !== socket.id) return;
     room.players.forEach(p => p.score = 0);
-    rooms[roomId] = { ...room, ...resetRoundState({}) };
+    rooms[roomId] = { ...room, ...resetRoundState({}), ...getDefaultRoomSettings() };
     io.to(roomId).emit('updateRoom', rooms[roomId]);
   });
 
