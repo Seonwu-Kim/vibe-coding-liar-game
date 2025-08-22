@@ -36,3 +36,25 @@
     transform: rotate(360deg);
   }
 }
+
+.chat-box {
+  height: 300px;
+  overflow-y: auto;
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.copy-tooltip {
+  position: absolute;
+  top: -35px; /* Position above the button */
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: #333;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 0.9rem;
+  z-index: 10;
+  white-space: nowrap; /* Prevent line break */
+}
