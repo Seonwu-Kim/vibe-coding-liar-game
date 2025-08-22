@@ -113,7 +113,6 @@ io.on('connection', (socket) => {
     if (room.gameMode === 'fool' && categoryWords.length > 1) {
         const wordIndex1 = Math.floor(Math.random() * categoryWords.length);
         citizenWord = categoryWords[wordIndex1];
-        
         let wordIndex2 = Math.floor(Math.random() * categoryWords.length);
         while (wordIndex1 === wordIndex2) {
             wordIndex2 = Math.floor(Math.random() * categoryWords.length);
@@ -134,11 +133,20 @@ io.on('connection', (socket) => {
         const playerSocket = io.sockets.sockets.get(player.id);
         if (!playerSocket) return;
         const isLiar = player.id === room.liarId;
-        playerSocket.emit('gameStarted', {
-            role: isLiar ? 'Liar' : 'Citizen',
-            category: currentCategory,
-            word: isLiar ? liarWord : citizenWord,
-        });
+
+        if (room.gameMode === 'fool') {
+            playerSocket.emit('gameStarted', {
+                role: 'Citizen',
+                category: currentCategory,
+                word: isLiar ? liarWord : citizenWord,
+            });
+        } else {
+            playerSocket.emit('gameStarted', {
+                role: isLiar ? 'Liar' : 'Citizen',
+                category: currentCategory,
+                word: isLiar ? null : citizenWord,
+            });
+        }
     });
     io.to(roomId).emit('updateRoom', room);
   });
@@ -180,6 +188,9 @@ io.on('connection', (socket) => {
         if (isLiar) {
             room.players.forEach(p => { if (p.id !== room.liarId) p.score += 1; });
             room.gameState = 'liarGuess';
+            // Send a secret event only to the liar
+            const liarSocket = io.sockets.sockets.get(room.liarId);
+            if (liarSocket) liarSocket.emit('youWereTheLiar');
             io.to(roomId).emit('updateRoom', room);
         } else {
             const liar = room.players.find(p => p.id === room.liarId);
