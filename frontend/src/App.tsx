@@ -29,6 +29,7 @@ interface Room {
   votes?: { [key: string]: string };
   voteResult: VoteResult | null;
   liarGuessResult: LiarGuessResult | null;
+  timer: number | null;
 }
 
 interface GameStartPayload {
@@ -44,6 +45,7 @@ function App() {
     const [room, setRoom] = useState<Room | null>(null);
     const [playerInfo, setPlayerInfo] = useState<GameStartPayload | null>(null);
     const [wasLiar, setWasLiar] = useState(false);
+    const [timer, setTimer] = useState<number | null>(null);
 
     useEffect(() => {
         const persistentId = localStorage.getItem('liarGamePlayerId');
@@ -72,6 +74,9 @@ function App() {
         socket.on('youWereTheLiar', () => {
             setWasLiar(true);
         });
+        socket.on('timerUpdate', (newTime: number | null) => {
+            setTimer(newTime);
+        });
         socket.on('error', (error: { message: string }) => {
             alert(error.message);
         });
@@ -81,6 +86,7 @@ function App() {
             socket.off('updateRoom');
             socket.off('gameStarted');
             socket.off('youWereTheLiar');
+            socket.off('timerUpdate');
             socket.off('error');
         };
     }, []);
@@ -89,7 +95,7 @@ function App() {
         return <Lobby />;
     }
 
-    return <GameRoom room={room} playerInfo={playerInfo} wasLiar={wasLiar} />;
+    return <GameRoom room={room} playerInfo={playerInfo} wasLiar={wasLiar} timer={timer} />;
 }
 
 const Lobby = () => {
@@ -136,6 +142,7 @@ interface GameRoomProps {
   room: Room;
   playerInfo: GameStartPayload | null;
   wasLiar: boolean;
+  timer: number | null;
 }
 
 const GameSettings = ({ room, isHost }: { room: Room, isHost: boolean }) => {
@@ -219,7 +226,20 @@ const GameSettings = ({ room, isHost }: { room: Room, isHost: boolean }) => {
     );
 }
 
-const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo, wasLiar }) => {
+const TimerDisplay = ({ timer, gameState }: { timer: number | null, gameState: Room['gameState'] }) => {
+    if (timer === null || (gameState !== 'playing' && gameState !== 'voting')) {
+        return null;
+    }
+    const message = gameState === 'playing' ? '힌트 제출까지' : '투표 마감까지';
+    return (
+        <div className="timer-display alert alert-warning text-center py-2">
+            <span className="me-2">{message}</span>
+            <strong>{timer}초</strong>
+        </div>
+    );
+}
+
+const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo, wasLiar, timer }) => {
     const isHost = socket.id === room.hostId;
     const myTurn = socket.id === room.turn;
     const hasVoted = socket.id && room.votes ? !!room.votes[socket.id] : false;
@@ -275,6 +295,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo, wasLiar }) => {
         <div className="container mt-4">
             <div className="row">
                 <div className="col-md-8">
+                    <TimerDisplay timer={timer} gameState={room.gameState} />
                     {room.gameState === 'waiting' ? <div className="card"><div className="card-header"><h4>게임 설정</h4></div><GameSettings room={room} isHost={isHost} /></div> : (
                         <>
                             {playerInfo && (

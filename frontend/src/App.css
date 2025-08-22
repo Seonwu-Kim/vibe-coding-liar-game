@@ -47,7 +47,7 @@
 
 .copy-tooltip {
   position: absolute;
-  top: -35px; /* Position above the button */
+  top: -35px;
   left: 50%;
   transform: translateX(-50%);
   background-color: #333;
@@ -56,5 +56,9 @@
   border-radius: 5px;
   font-size: 0.9rem;
   z-index: 10;
-  white-space: nowrap; /* Prevent line break */
+  white-space: nowrap;
+}
+
+.timer-display {
+  margin-bottom: 1rem;
 }
