@@ -30,6 +30,7 @@ const resetRoundState = (room) => {
     room.votes = {};
     room.voteResult = null;
     room.liarGuessResult = null;
+    room.currentCategory = null;
     return room;
 }
 
@@ -38,14 +39,14 @@ io.on('connection', (socket) => {
 
   const createPlayer = (name) => ({ id: socket.id, persistentId: generatePersistentId(), name, score: 0 });
 
-  socket.on('createRoom', ({ playerName, category, targetScore }) => {
+  socket.on('createRoom', ({ playerName, selectedCategories, targetScore }) => {
     const roomId = generateRoomId();
     const player = createPlayer(playerName);
     rooms[roomId] = {
       roomId,
       players: [player],
       hostId: socket.id,
-      category,
+      selectedCategories: selectedCategories || ['영화'], // Default to one category
       targetScore: targetScore || 5,
       ...resetRoundState({})
     };
@@ -67,8 +68,7 @@ io.on('connection', (socket) => {
     if (!room) return;
     const player = room.players.find(p => p.persistentId === persistentId);
     if (player) {
-        console.log(`Reconnecting player ${player.name} with new socket id`);
-        player.id = socket.id; // Update socket ID
+        player.id = socket.id;
         socket.join(roomId);
         io.to(roomId).emit('updateRoom', room);
     } else {
@@ -80,22 +80,30 @@ io.on('connection', (socket) => {
     let room = rooms[roomId];
     if (!room || room.hostId !== socket.id) return;
     if (room.players.length < 2) return socket.emit('error', { message: 'Need at least 2 players to start.' });
+
     room = resetRoundState(room);
     room.gameState = 'playing';
+
+    // Randomly select a category for this round from the selected list
+    const randomCategoryIndex = Math.floor(Math.random() * room.selectedCategories.length);
+    const currentCategory = room.selectedCategories[randomCategoryIndex];
+    room.currentCategory = currentCategory;
+
     const liarIndex = Math.floor(Math.random() * room.players.length);
     room.liarId = room.players[liarIndex].id;
-    const categoryWords = wordsData[room.category];
+    const categoryWords = wordsData[currentCategory];
     const wordIndex = Math.floor(Math.random() * categoryWords.length);
     room.word = categoryWords[wordIndex];
     const firstTurnIndex = Math.floor(Math.random() * room.players.length);
     room.turn = room.players[firstTurnIndex].id;
+
     room.players.forEach(player => {
         const playerSocket = io.sockets.sockets.get(player.id);
         if (!playerSocket) return;
         const isLiar = player.id === room.liarId;
         playerSocket.emit('gameStarted', {
             role: isLiar ? 'Liar' : 'Citizen',
-            category: room.category,
+            category: currentCategory,
             word: isLiar ? null : room.word,
         });
     });
@@ -170,19 +178,11 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('updateRoom', rooms[roomId]);
   });
 
-  socket.on('disconnect', () => {
-    console.log('user disconnected:', socket.id);
-    // Note: A robust disconnect/reconnect logic would use a timeout
-    // to avoid instantly removing a player who is just refreshing.
-    // For this project, we'll keep it simple: reconnect will fix it.
+  socket.on('disconnect', ({ reason }) => {
     const roomId = Object.keys(rooms).find(key => rooms[key] && rooms[key].players.some(p => p.id === socket.id));
     if (!roomId || !rooms[roomId]) return;
     const player = rooms[roomId].players.find(p => p.id === socket.id);
     if (!player) return;
-
-    console.log(`Player ${player.name} disconnected from room ${roomId}`);
-    // To prevent flicker, we can just mark them as disconnected instead of removing
-    // But for simplicity, we remove them and reconnect will add them back.
     rooms[roomId].players = rooms[roomId].players.filter(p => p.id !== socket.id);
     if (rooms[roomId].players.length === 0) {
         delete rooms[roomId];

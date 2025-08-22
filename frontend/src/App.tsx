@@ -4,8 +4,8 @@ import './App.css';
 
 // Type definitions
 interface Player {
-  id: string; // socket.id - can change on refresh
-  persistentId: string; // permanent id for the player
+  id: string;
+  persistentId: string;
   name: string;
   score: number;
 }
@@ -17,7 +17,8 @@ interface Room {
   roomId: string;
   players: Player[];
   hostId: string;
-  category: string;
+  selectedCategories: string[];
+  currentCategory: string | null;
   targetScore: number;
   gameState: 'waiting' | 'playing' | 'voting' | 'liarGuess' | 'roundOver' | 'finished';
   word: string | null;
@@ -36,11 +37,11 @@ interface GameStartPayload {
 }
 
 const socket = io('https://liar-game-zno1.onrender.com');
+const ALL_CATEGORIES = ['영화', '음식', '동물', 'IT용어', '롤 챔피언', '게임', '연예인', '직업'];
 
 function App() {
     const [room, setRoom] = useState<Room | null>(null);
     const [playerInfo, setPlayerInfo] = useState<GameStartPayload | null>(null);
-    const [error, setError] = useState('');
 
     useEffect(() => {
         const persistentId = localStorage.getItem('liarGamePlayerId');
@@ -60,13 +61,12 @@ function App() {
             if (updatedRoom.gameState === 'waiting') {
                 setPlayerInfo(null);
             }
-            setError('');
         });
         socket.on('gameStarted', (payload: GameStartPayload) => {
             setPlayerInfo(payload);
         });
         socket.on('error', (error: { message: string }) => {
-            setError(error.message);
+            alert(error.message);
         });
 
         return () => {
@@ -87,12 +87,21 @@ function App() {
 const Lobby = () => {
     const [playerName, setPlayerName] = useState('');
     const [roomId, setRoomId] = useState('');
-    const [category, setCategory] = useState('영화');
+    const [selectedCategories, setSelectedCategories] = useState<string[]>(['영화']);
     const [targetScore, setTargetScore] = useState(5);
+
+    const handleCategoryChange = (category: string) => {
+        setSelectedCategories(prev => 
+            prev.includes(category) 
+                ? prev.filter(c => c !== category) 
+                : [...prev, category]
+        );
+    };
 
     const handleCreateRoom = () => {
         if (!playerName) { alert('이름을 입력해주세요.'); return; }
-        socket.emit('createRoom', { playerName, category, targetScore });
+        if (selectedCategories.length === 0) { alert('하나 이상의 주제를 선택해주세요.'); return; }
+        socket.emit('createRoom', { playerName, selectedCategories, targetScore });
     };
 
     const handleJoinRoom = () => {
@@ -103,25 +112,30 @@ const Lobby = () => {
     return (
         <div className="container text-center"> 
             <div className="row justify-content-center">
-                <div className="col-md-6">
+                <div className="col-md-8">
                     <h1 className="my-4">라이어 게임</h1>
                     <div className="card p-4">
                         <h2 className="mb-4">게임 참가하기</h2>
                         <input type="text" className="form-control mb-3" placeholder="이름을 입력하세요" value={playerName} onChange={(e) => setPlayerName(e.target.value)} />
                         <div className="card-body">
                             <h5 className="card-title">새로운 방 만들기</h5>
-                            <div className="input-group mb-3">
-                                <label className="input-group-text">주제</label>
-                                <select className="form-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-                                    <option value="영화">영화</option>
-                                    <option value="음식">음식</option>
-                                    <option value="동물">동물</option>
-                                    <option value="IT용어">IT용어</option>
-                                    <option value="롤 챔피언">롤 챔피언</option>
-                                    <option value="게임">게임</option>
-                                    <option value="연예인">연예인</option>
-                                    <option value="직업">직업</option>
-                                </select>
+                            <div className="mb-3">
+                                <label className="form-label">주제 선택 (1개 이상)</label>
+                                <div className="d-flex flex-wrap justify-content-center">
+                                    {ALL_CATEGORIES.map(category => (
+                                        <div key={category} className="form-check form-check-inline">
+                                            <input 
+                                                className="form-check-input" 
+                                                type="checkbox" 
+                                                id={`category-${category}`}
+                                                value={category}
+                                                checked={selectedCategories.includes(category)}
+                                                onChange={() => handleCategoryChange(category)}
+                                            />
+                                            <label className="form-check-label" htmlFor={`category-${category}`}>{category}</label>
+                                        </div>
+                                    ))}
+                                </div>
                             </div>
                             <div className="input-group mb-3">
                                 <label className="input-group-text">목표 점수</label>
@@ -209,7 +223,7 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                             <div className="card-header"><h2>나의 역할</h2></div>
                             <div className="card-body">
                                 <h3 className="card-title">당신은 <span className={playerInfo.role === 'Liar' ? 'text-danger' : 'text-success'}>{playerInfo.role === 'Liar' ? '라이어' : '시민'}</span> 입니다</h3>
-                                <p className="card-text fs-4">주제: {playerInfo.category}</p>
+                                <p className="card-text fs-4">이번 라운드 주제: {playerInfo.category}</p>
                                 {playerInfo.role === 'Citizen' && <p className="card-text fs-4">제시어: <strong>{playerInfo.word}</strong></p>}
                             </div>
                         </div>
