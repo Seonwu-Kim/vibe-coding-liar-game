@@ -260,7 +260,15 @@ const GameRoom: React.FC<GameRoomProps> = ({ room, playerInfo }) => {
                 <div className="col-md-4">
                     {/* Player List and Controls */}
                     <div className="card">
-                        <div className="card-header d-flex justify-content-between align-items-center"><h3>방: {room.roomId}</h3><button className="btn btn-sm btn-outline-danger" onClick={handleLeaveRoom}>방 나가기</button></div>
+                        <div className="card-header d-flex justify-content-between align-items-center">
+                            <div className="d-flex align-items-center">
+                                <h3>방: {room.roomId}</h3>
+                                <button className="btn btn-sm btn-outline-secondary ms-2" onClick={handleCopyRoomId} title="방 ID 복사">
+                                    <i className="bi bi-clipboard"></i>
+                                </button>
+                            </div>
+                            <button className="btn btn-sm btn-outline-danger" onClick={handleLeaveRoom}>방 나가기</button>
+                        </div>
                         <div className="card-body">
                             <h5 className="card-title">플레이어 ({room.players.length}) / 목표: {room.targetScore}점</h5>
                             <ul className="list-group mb-3">
