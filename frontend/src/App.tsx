@@ -266,7 +266,7 @@ const Lobby = () => {
         <div className="col-md-6">
           <h1 className="my-4">라이어 게임</h1>
           <div className="card p-4">
-            <h2 className="mb-4">게임 참가하기</h2>
+            <h2 className="mb-4">플레이어 정보</h2>
             <input
               type="text"
               className="form-control mb-3"
@@ -274,13 +274,13 @@ const Lobby = () => {
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
             />
-            <div className="d-grid gap-2">
-              <button className="btn btn-primary" onClick={handleCreateRoom}>
-                새로운 방 만들기
-              </button>
-            </div>
-            <hr />
             <div className="card-body">
+              <div className="d-grid gap-2">
+                <button className="btn btn-primary" onClick={handleCreateRoom}>
+                  새로운 방 만들기
+                </button>
+              </div>
+              <hr />
               <h5 className="card-title">기존 방에 참가하기</h5>
               <div className="input-group">
                 <input
