@@ -353,12 +353,13 @@ const Lobby = () => {
   };
 
   useEffect(() => {
-    socket.on("roomCreated", (room: Room) => {
+    const handleRoomCreated = (room: Room) => {
       navigate(`/room/${room.roomId}`);
-    });
+    };
+    socket.on("roomCreated", handleRoomCreated);
 
     return () => {
-      socket.off("roomCreated");
+      socket.off("roomCreated", handleRoomCreated);
     };
   }, [navigate]);
 
