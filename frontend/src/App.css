@@ -67,3 +67,33 @@
   border: 3px solid #007bff !important;
   box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
 }
+
+.speech-bubble {
+  position: relative;
+  background: #007bff;
+  color: #ffffff;
+  border-radius: .4em;
+  padding: 5px 10px;
+  font-size: 1.2rem;
+}
+
+.speech-bubble:after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 0;
+  height: 0;
+  border: 10px solid transparent;
+  border-right-color: #007bff;
+  border-left: 0;
+  margin-top: -10px;
+  margin-left: -10px;
+}
+
+.emoji-picker-container {
+    position: absolute;
+    bottom: 100%;
+    right: 0;
+    z-index: 10;
+}

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { BrowserRouter, Routes, Route, useParams, useNavigate, useLocation } from "react-router-dom";
 import io from "socket.io-client";
 import "./App.css";
+import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 
 // Type definitions
 interface Player {
@@ -247,9 +248,15 @@ function Game() {
   const [wasLiar, setWasLiar] = useState(false);
   const [timer, setTimer] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [playerEmojis, setPlayerEmojis] = useState<{ [key: string]: string }>({});
   const [sounds, setSounds] = useState<{
     [key: string]: HTMLAudioElement;
   }>({});
+
+  const isEmojiOnly = (str: string) => {
+    const emojiRegex = /^(\p{Emoji_Presentation}|\s)+$/u;
+    return emojiRegex.test(str.trim());
+  };
 
   useEffect(() => {
     const soundFiles = {
@@ -341,6 +348,19 @@ function Game() {
 
     socket.on("newMessage", (message: ChatMessage) => {
       setMessages((prevMessages) => [...prevMessages, message]);
+      if (room && isEmojiOnly(message.message)) {
+        const sender = room.players.find(p => p.name === message.sender);
+        if (sender) {
+          setPlayerEmojis(prev => ({ ...prev, [sender.persistentId]: message.message }));
+          setTimeout(() => {
+            setPlayerEmojis(prev => {
+              const newState = { ...prev };
+              delete newState[sender.persistentId];
+              return newState;
+            });
+          }, 5000);
+        }
+      }
     });
 
     socket.on("error", (error: { message: string }) => {
@@ -356,7 +376,7 @@ function Game() {
       socket.off("newMessage");
       socket.off("error");
     };
-  }, [roomId, navigate]);
+  }, [roomId, navigate, room]);
 
   if (!room) {
     return <JoinRoom />;
@@ -370,6 +390,7 @@ function Game() {
       timer={timer}
       messages={messages}
       playSound={playSound}
+      playerEmojis={playerEmojis}
     />
   );
 }
@@ -480,10 +501,14 @@ interface GameRoomProps {
   timer: number | null;
   messages: ChatMessage[];
   playSound: (soundName: string) => void;
+  playerEmojis: { [key: string]: string };
 }
+
+
 
 const Chat = ({ roomId, messages }: { roomId: string; messages: ChatMessage[] }) => {
   const [message, setMessage] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -496,8 +521,13 @@ const Chat = ({ roomId, messages }: { roomId: string; messages: ChatMessage[] })
     if (message.trim()) {
       socket.emit("sendMessage", { roomId, message });
       setMessage("");
+      setShowEmojiPicker(false);
     }
   };
+
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setMessage(prevMessage => prevMessage + emojiData.emoji);
+  }
 
   return (
     <div className="card mt-3">
@@ -509,7 +539,12 @@ const Chat = ({ roomId, messages }: { roomId: string; messages: ChatMessage[] })
           </div>
         ))}
       </div>
-      <div className="card-footer">
+      <div className="card-footer position-relative">
+        {showEmojiPicker && (
+          <div className="emoji-picker-container">
+            <EmojiPicker onEmojiClick={onEmojiClick} />
+          </div>
+        )}
         <div className="input-group">
           <input
             type="text"
@@ -519,6 +554,9 @@ const Chat = ({ roomId, messages }: { roomId: string; messages: ChatMessage[] })
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
           />
+          <button className="btn btn-outline-secondary" type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
+            😊
+          </button>
           <button className="btn btn-primary" onClick={handleSendMessage}>
             전송
           </button>
@@ -785,6 +823,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
   timer,
   messages,
   playSound,
+  playerEmojis,
 }) => {
   const navigate = useNavigate();
   const isHost = socket.id === room.hostId;
@@ -1111,6 +1150,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
               <ul className="list-group mb-3">
                 {room.players.map((player) => {
                   const count = voteCounts[player.id] || 0;
+                  const emoji = playerEmojis[player.persistentId];
                   return (
                     <li
                       key={player.persistentId}
@@ -1118,8 +1158,9 @@ const GameRoom: React.FC<GameRoomProps> = ({
                         room.turn === player.id ? "active" : ""
                       }`}
                     >
-                      <div>
+                      <div className="d-flex align-items-center">
                         {player.name}
+                        {emoji && <span className="speech-bubble ms-2">{emoji}</span>}
                         {room.hostId === player.id && (
                           <span className="badge bg-primary ms-2">방장</span>
                         )}
