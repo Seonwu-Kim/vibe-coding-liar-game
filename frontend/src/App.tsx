@@ -756,6 +756,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
   const [liarGuess, setLiarGuess] = useState("");
   const [showCopyMessage, setShowCopyMessage] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
+  const hintInputRef = useRef<HTMLInputElement>(null);
 
   const voteCounts: { [key: string]: number } = {};
   if (room.votes) {
@@ -769,6 +770,12 @@ const GameRoom: React.FC<GameRoomProps> = ({
       chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
     }
   }, [room.hints, room.voteResult, room.liarGuessResult]);
+
+  useEffect(() => {
+    if (myTurn && room.gameState === "playing" && room.hintType === "text") {
+      hintInputRef.current?.focus();
+    }
+  }, [myTurn, room.gameState, room.hintType]);
 
   const handleStartNextRound = () =>
     socket.emit("startGame", { roomId: room.roomId });
@@ -962,6 +969,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
                     ) : (
                       <div className="input-group">
                         <input
+                          ref={hintInputRef}
                           type="text"
                           className="form-control"
                           placeholder="힌트를 입력하세요"
