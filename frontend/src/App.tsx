@@ -235,8 +235,14 @@ function App() {
 }
 
 const Lobby = () => {
-  const [playerName, setPlayerName] = useState("");
+  const [playerName, setPlayerName] = useState(
+    localStorage.getItem("liarGamePlayerName") || ""
+  );
   const [roomId, setRoomId] = useState("");
+
+  useEffect(() => {
+    localStorage.setItem("liarGamePlayerName", playerName);
+  }, [playerName]);
 
   const handleCreateRoom = () => {
     if (!playerName) {
