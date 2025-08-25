@@ -190,7 +190,7 @@ io.on("connection", (socket) => {
       ...resetRoundState({ roomId }),
     };
     socket.join(roomId);
-    io.to(roomId).emit("updateRoom", rooms[roomId]);
+    socket.emit("roomCreated", rooms[roomId]);
   });
 
   socket.on("updateSettings", ({ roomId, newSettings }) => {

@@ -245,11 +245,6 @@ function Game() {
 
     if (persistentId && roomId === storedRoomId) {
       socket.emit("reconnectPlayer", { persistentId, roomId });
-    } else {
-      const playerName = localStorage.getItem("liarGamePlayerName");
-      if (playerName) {
-        socket.emit("joinRoom", { playerName, roomId });
-      }
     }
 
     socket.on("updateRoom", (updatedRoom: Room) => {
@@ -334,14 +329,12 @@ const Lobby = () => {
   };
 
   useEffect(() => {
-    socket.on("updateRoom", (room: Room) => {
-      if (socket.id === room.hostId) {
-        navigate(`/room/${room.roomId}`);
-      }
+    socket.on("roomCreated", (room: Room) => {
+      navigate(`/room/${room.roomId}`);
     });
 
     return () => {
-      socket.off("updateRoom");
+      socket.off("roomCreated");
     };
   }, [navigate]);
 
@@ -728,6 +721,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
   messages,
   playSound,
 }) => {
+  const navigate = useNavigate();
   const isHost = socket.id === room.hostId;
   const myTurn = socket.id === room.turn;
   const hasVoted = socket.id && room.votes ? !!room.votes[socket.id] : false;
@@ -773,7 +767,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
   const handleLeaveRoom = () => {
     localStorage.removeItem("liarGamePlayerId");
     localStorage.removeItem("liarGameRoomId");
-    window.location.reload();
+    navigate("/");
   };
   const handleCopyRoomId = () => {
     navigator.clipboard.writeText(`${window.location.origin}/room/${room.roomId}`).then(() => {
