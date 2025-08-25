@@ -88,13 +88,13 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [color, setColor] = useState("black");
+  const [history, setHistory] = useState<ImageData[]>([]);
 
   const colors = ["black", "red", "blue", "green", "yellow", "orange", "purple", "white"];
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // Ensure canvas size is set after it has been rendered in the DOM
     setTimeout(() => {
       if (canvas.offsetWidth > 0) {
         canvas.width = canvas.offsetWidth;
@@ -105,6 +105,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
         context.strokeStyle = color;
         context.lineWidth = 3;
         contextRef.current = context;
+        saveState();
       }
     }, 0);
   }, []);
@@ -114,6 +115,39 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
       contextRef.current.strokeStyle = color;
     }
   }, [color]);
+
+  const handleUndo = () => {
+    if (history.length > 1) {
+      const newHistory = history.slice(0, -1);
+      setHistory(newHistory);
+      const lastState = newHistory[newHistory.length - 1];
+      if (lastState && contextRef.current) {
+        contextRef.current.putImageData(lastState, 0, 0);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+        e.preventDefault();
+        handleUndo();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [history]);
+
+  const saveState = () => {
+    const canvas = canvasRef.current;
+    const context = contextRef.current;
+    if (canvas && context) {
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      setHistory((prev) => [...prev, imageData]);
+    }
+  };
 
   const startDrawing = ({
     nativeEvent,
@@ -127,6 +161,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
   const stopDrawing = () => {
     contextRef.current?.closePath();
     setIsDrawing(false);
+    saveState();
   };
 
   const draw = ({ nativeEvent }: React.MouseEvent<HTMLCanvasElement>) => {
@@ -140,6 +175,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
     const canvas = canvasRef.current;
     if (canvas && contextRef.current) {
       contextRef.current.clearRect(0, 0, canvas.width, canvas.height);
+      saveState();
     }
   };
 
@@ -175,6 +211,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
         <div className="d-flex gap-2">
           <button className="btn btn-secondary" onClick={() => setColor("white")}>
             지우개
+          </button>
+          <button className="btn btn-secondary" onClick={handleUndo} disabled={history.length <= 1}>
+            되돌리기
           </button>
           <button className="btn btn-secondary" onClick={handleClear}>
             전체 지우기
