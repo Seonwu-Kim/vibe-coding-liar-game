@@ -369,23 +369,25 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    const roomId = Object.keys(rooms).find(
-      (key) => rooms[key] && rooms[key].players.some((p) => p.id === socket.id)
-    );
-    if (!roomId || !rooms[roomId]) return;
-    const player = rooms[roomId].players.find((p) => p.id === socket.id);
-    if (!player) return;
-    rooms[roomId].players = rooms[roomId].players.filter(
-      (p) => p.id !== socket.id
-    );
-    if (rooms[roomId].players.length === 0) {
-      delete rooms[roomId];
-      return;
-    }
-    if (rooms[roomId].hostId === socket.id) {
-      rooms[roomId].hostId = rooms[roomId].players[0].id;
-    }
-    io.to(roomId).emit("updateRoom", rooms[roomId]);
+    setTimeout(() => {
+      const roomId = Object.keys(rooms).find(
+        (key) => rooms[key] && rooms[key].players.some((p) => p.id === socket.id)
+      );
+      if (!roomId || !rooms[roomId]) return;
+      const player = rooms[roomId].players.find((p) => p.id === socket.id);
+      if (!player) return;
+      rooms[roomId].players = rooms[roomId].players.filter(
+        (p) => p.id !== socket.id
+      );
+      if (rooms[roomId].players.length === 0) {
+        delete rooms[roomId];
+        return;
+      }
+      if (rooms[roomId].hostId === socket.id) {
+        rooms[roomId].hostId = rooms[roomId].players[0].id;
+      }
+      io.to(roomId).emit("updateRoom", rooms[roomId]);
+    }, 5000); // 5초의 유예 시간
   });
 });
 
