@@ -87,6 +87,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const contextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
+  const [color, setColor] = useState("black");
+
+  const colors = ["black", "red", "blue", "green", "yellow", "orange", "purple", "white"];
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -99,12 +102,18 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
         const context = canvas.getContext("2d");
         if (!context) return;
         context.lineCap = "round";
-        context.strokeStyle = "black";
+        context.strokeStyle = color;
         context.lineWidth = 3;
         contextRef.current = context;
       }
     }, 0);
   }, []);
+
+  useEffect(() => {
+    if (contextRef.current) {
+      contextRef.current.strokeStyle = color;
+    }
+  }, [color]);
 
   const startDrawing = ({
     nativeEvent,
@@ -152,13 +161,28 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
         onMouseLeave={stopDrawing}
         className="border border-dark w-100 bg-white"
       />
-      <div className="d-flex justify-content-end gap-2 mt-2">
-        <button className="btn btn-secondary" onClick={handleClear}>
-          지우기
-        </button>
-        <button className="btn btn-primary" onClick={handleSubmit}>
-          힌트 제출
-        </button>
+      <div className="d-flex justify-content-between align-items-center mt-2">
+        <div className="d-flex gap-2">
+          {colors.map((c) => (
+            <button
+              key={c}
+              className="btn btn-sm"
+              style={{ backgroundColor: c, width: "30px", height: "30px" }}
+              onClick={() => setColor(c)}
+            />
+          ))}
+        </div>
+        <div className="d-flex gap-2">
+          <button className="btn btn-secondary" onClick={() => setColor("white")}>
+            지우개
+          </button>
+          <button className="btn btn-secondary" onClick={handleClear}>
+            전체 지우기
+          </button>
+          <button className="btn btn-primary" onClick={handleSubmit}>
+            힌트 제출
+          </button>
+        </div>
       </div>
     </div>
   );
