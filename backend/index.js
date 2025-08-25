@@ -221,9 +221,13 @@ io.on("connection", (socket) => {
   socket.on("reconnectPlayer", ({ persistentId, roomId }) => {
     const room = rooms[roomId];
     if (!room) return;
-    const player = room.players.find((p) => p.persistentId === persistentId);
-    if (player) {
-      player.id = socket.id;
+    const oldPlayer = room.players.find((p) => p.persistentId === persistentId);
+    if (oldPlayer) {
+      const wasHost = room.hostId === oldPlayer.id;
+      oldPlayer.id = socket.id;
+      if (wasHost) {
+        room.hostId = socket.id;
+      }
       socket.join(roomId);
       io.to(roomId).emit("updateRoom", room);
     } else {
