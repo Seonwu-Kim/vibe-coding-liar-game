@@ -375,7 +375,8 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     setTimeout(() => {
       const roomId = Object.keys(rooms).find(
-        (key) => rooms[key] && rooms[key].players.some((p) => p.id === socket.id)
+        (key) =>
+          rooms[key] && rooms[key].players.some((p) => p.id === socket.id)
       );
       if (!roomId || !rooms[roomId]) return;
       const player = rooms[roomId].players.find((p) => p.id === socket.id);
@@ -391,7 +392,7 @@ io.on("connection", (socket) => {
         rooms[roomId].hostId = rooms[roomId].players[0].id;
       }
       io.to(roomId).emit("updateRoom", rooms[roomId]);
-    }, 5000); // 5초의 유예 시간
+    }, 2000); // 2초의 유예 시간
   });
 });
 
