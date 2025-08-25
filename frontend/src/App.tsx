@@ -821,12 +821,9 @@ const GameRoom: React.FC<GameRoomProps> = ({
           ) : (
             <>
               {playerInfo && (
-                <div className="card mb-3">
-                  <div className="card-header">
-                    <h2>나의 역할</h2>
-                  </div>
-                  <div className="card-body">
-                    <h3 className="card-title">
+                <div className="card mb-2">
+                  <div className="card-body py-2">
+                    <h5 className="card-title">
                       당신은{" "}
                       <span
                         className={
@@ -838,17 +835,17 @@ const GameRoom: React.FC<GameRoomProps> = ({
                         {playerInfo.role === "Liar" ? "라이어" : "시민"}
                       </span>{" "}
                       입니다
-                    </h3>
-                    <p className="card-text fs-4">
+                    </h5>
+                    <p className="card-text mb-0">
                       이번 라운드 주제: {playerInfo.category}
                     </p>
                     {playerInfo.word ? (
-                      <p className="card-text fs-4">
+                      <p className="card-text mb-0">
                         제시어: <strong>{playerInfo.word}</strong>
                       </p>
                     ) : (
                       room.gameMode !== "fool" && (
-                        <p className="card-text fs-4 text-danger">
+                        <p className="card-text mb-0 text-danger">
                           당신은 라이어입니다. 제시어를 추리하세요!
                         </p>
                       )
@@ -860,7 +857,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
                 <div className="card-header">
                   <h4>게임 현황</h4>
                 </div>
-                <div className="card-body chat-box" ref={chatBodyRef}>
+                <div className="card-body chat-box" ref={chatBodyRef} style={{ height: "400px", overflowY: "auto" }}>
                   {room.hints.map((h, index) => (
                     <div key={index} className="mb-2">
                       <strong>{h.player.name}:</strong>
