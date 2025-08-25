@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from "react-router-dom";
 import io from "socket.io-client";
 import "./App.css";
 
@@ -164,6 +165,19 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
 };
 
 function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Lobby />} />
+        <Route path="/room/:roomId" element={<Game />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
+
+function Game() {
+  const { roomId } = useParams();
+  const navigate = useNavigate();
   const [room, setRoom] = useState<Room | null>(null);
   const [playerInfo, setPlayerInfo] = useState<GameStartPayload | null>(null);
   const [wasLiar, setWasLiar] = useState(false);
@@ -227,13 +241,12 @@ function App() {
 
   useEffect(() => {
     const persistentId = localStorage.getItem("liarGamePlayerId");
-    const roomId = localStorage.getItem("liarGameRoomId");
     if (persistentId && roomId) {
       socket.emit("reconnectPlayer", { persistentId, roomId });
     }
 
-    socket.on("connect", () => console.log("Socket connected!", socket.id));
     socket.on("updateRoom", (updatedRoom: Room) => {
+      if (updatedRoom.roomId !== roomId) return;
       setRoom(updatedRoom);
       setMessages(updatedRoom.messages || []);
       const me = updatedRoom.players.find((p) => p.id === socket.id);
@@ -246,25 +259,30 @@ function App() {
         setWasLiar(false);
       }
     });
+
     socket.on("gameStarted", (payload: GameStartPayload) => {
       setPlayerInfo(payload);
       setWasLiar(payload.role === "Liar");
     });
+
     socket.on("youWereTheLiar", () => {
       setWasLiar(true);
     });
+
     socket.on("timerUpdate", (newTime: number | null) => {
       setTimer(newTime);
     });
+
     socket.on("newMessage", (message: ChatMessage) => {
       setMessages((prevMessages) => [...prevMessages, message]);
     });
+
     socket.on("error", (error: { message: string }) => {
       alert(error.message);
+      navigate("/");
     });
 
     return () => {
-      socket.off("connect");
       socket.off("updateRoom");
       socket.off("gameStarted");
       socket.off("youWereTheLiar");
@@ -272,10 +290,10 @@ function App() {
       socket.off("newMessage");
       socket.off("error");
     };
-  }, []);
+  }, [roomId, navigate]);
 
   if (!room) {
-    return <Lobby />;
+    return <JoinRoom />;
   }
 
   return (
@@ -291,10 +309,10 @@ function App() {
 }
 
 const Lobby = () => {
+  const navigate = useNavigate();
   const [playerName, setPlayerName] = useState(
     localStorage.getItem("liarGamePlayerName") || ""
   );
-  const [roomId, setRoomId] = useState("");
 
   useEffect(() => {
     localStorage.setItem("liarGamePlayerName", playerName);
@@ -308,9 +326,55 @@ const Lobby = () => {
     socket.emit("createRoom", { playerName });
   };
 
+  useEffect(() => {
+    socket.on("updateRoom", (room: Room) => {
+      navigate(`/room/${room.roomId}`);
+    });
+
+    return () => {
+      socket.off("updateRoom");
+    };
+  }, [navigate]);
+
+  return (
+    <div className="container text-center">
+      <div className="row justify-content-center">
+        <div className="col-md-6">
+          <h1 className="my-4">라이어 게임</h1>
+          <div className="card p-4">
+            <h2 className="mb-4">새로운 게임 시작</h2>
+            <input
+              type="text"
+              className="form-control mb-3"
+              placeholder="이름을 입력하세요"
+              value={playerName}
+              onChange={(e) => setPlayerName(e.target.value)}
+            />
+            <div className="d-grid gap-2">
+              <button className="btn btn-primary" onClick={handleCreateRoom}>
+                방 만들기
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const JoinRoom = () => {
+  const { roomId } = useParams();
+  const [playerName, setPlayerName] = useState(
+    localStorage.getItem("liarGamePlayerName") || ""
+  );
+
+  useEffect(() => {
+    localStorage.setItem("liarGamePlayerName", playerName);
+  }, [playerName]);
+
   const handleJoinRoom = () => {
-    if (!playerName || !roomId) {
-      alert("이름과 방 ID를 입력해주세요.");
+    if (!playerName) {
+      alert("이름을 입력해주세요.");
       return;
     }
     socket.emit("joinRoom", { playerName, roomId });
@@ -322,7 +386,7 @@ const Lobby = () => {
         <div className="col-md-6">
           <h1 className="my-4">라이어 게임</h1>
           <div className="card p-4">
-            <h2 className="mb-4">플레이어 정보</h2>
+            <h2 className="mb-4">게임에 참가하기</h2>
             <input
               type="text"
               className="form-control mb-3"
@@ -330,26 +394,10 @@ const Lobby = () => {
               value={playerName}
               onChange={(e) => setPlayerName(e.target.value)}
             />
-            <div className="card-body">
-              <div className="d-grid gap-2">
-                <button className="btn btn-primary" onClick={handleCreateRoom}>
-                  새로운 방 만들기
-                </button>
-              </div>
-              <hr />
-              <h5 className="card-title">기존 방에 참가하기</h5>
-              <div className="input-group">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="방 ID를 입력하세요"
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value.toUpperCase())}
-                />
-                <button className="btn btn-secondary" onClick={handleJoinRoom}>
-                  참가
-                </button>
-              </div>
+            <div className="d-grid gap-2">
+              <button className="btn btn-primary" onClick={handleJoinRoom}>
+                참가하기
+              </button>
             </div>
           </div>
         </div>
@@ -719,7 +767,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
     window.location.reload();
   };
   const handleCopyRoomId = () => {
-    navigator.clipboard.writeText(room.roomId).then(() => {
+    navigator.clipboard.writeText(`${window.location.origin}/room/${room.roomId}`).then(() => {
       setShowCopyMessage(true);
       setTimeout(() => setShowCopyMessage(false), 2000);
     });
