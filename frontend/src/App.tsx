@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { BrowserRouter, Routes, Route, useParams, useNavigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useParams, useNavigate, useLocation } from "react-router-dom";
 import io from "socket.io-client";
 import "./App.css";
 
@@ -202,7 +202,8 @@ function App() {
 function Game() {
   const { roomId } = useParams();
   const navigate = useNavigate();
-  const [room, setRoom] = useState<Room | null>(null);
+  const location = useLocation();
+  const [room, setRoom] = useState<Room | null>(location.state?.room || null);
   const [playerInfo, setPlayerInfo] = useState<GameStartPayload | null>(null);
   const [wasLiar, setWasLiar] = useState(false);
   const [timer, setTimer] = useState<number | null>(null);
@@ -354,7 +355,7 @@ const Lobby = () => {
 
   useEffect(() => {
     const handleRoomCreated = (room: Room) => {
-      navigate(`/room/${room.roomId}`);
+      navigate(`/room/${room.roomId}`, { state: { room } });
     };
     socket.on("roomCreated", handleRoomCreated);
 
