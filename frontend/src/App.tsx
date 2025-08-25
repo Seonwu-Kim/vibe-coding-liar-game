@@ -169,6 +169,61 @@ function App() {
   const [wasLiar, setWasLiar] = useState(false);
   const [timer, setTimer] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [sounds, setSounds] = useState<{
+    [key: string]: HTMLAudioElement;
+  }>({});
+
+  useEffect(() => {
+    const soundFiles = {
+      gameStart: "https://assets.mixkit.co/sfx/preview/mixkit-video-game-win-2016.mp3",
+      hintSubmitted: "https://assets.mixkit.co/sfx/preview/mixkit-quick-win-video-game-2010.mp3",
+      votingStarts: "https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.mp3",
+      liarRevealedCorrect: "https://assets.mixkit.co/sfx/preview/mixkit-positive-interface-beep-221.mp3",
+      liarRevealedIncorrect: "https://assets.mixkit.co/sfx/preview/mixkit-game-show-wrong-answer-950.mp3",
+      roundEnd: "https://assets.mixkit.co/sfx/preview/mixkit-video-game-treasure-2066.mp3",
+      gameEnd: "https://assets.mixkit.co/sfx/preview/mixkit-video-game-level-complete-2059.mp3",
+    };
+
+    const audioElements: { [key: string]: HTMLAudioElement } = {};
+    Object.keys(soundFiles).forEach((key) => {
+      audioElements[key] = new Audio(soundFiles[key as keyof typeof soundFiles]);
+    });
+    setSounds(audioElements);
+  }, []);
+
+  const playSound = (soundName: string) => {
+    if (sounds[soundName]) {
+      sounds[soundName].play();
+    }
+  };
+
+  useEffect(() => {
+    if (!room) return;
+
+    switch (room.gameState) {
+      case "playing":
+        playSound("gameStart");
+        break;
+      case "voting":
+        playSound("votingStarts");
+        break;
+      case "liarGuess":
+        if (room.voteResult?.isLiar) {
+          playSound("liarRevealedCorrect");
+        } else {
+          playSound("liarRevealedIncorrect");
+        }
+        break;
+      case "roundOver":
+        playSound("roundEnd");
+        break;
+      case "finished":
+        playSound("gameEnd");
+        break;
+      default:
+        break;
+    }
+  }, [room?.gameState]);
 
   useEffect(() => {
     const persistentId = localStorage.getItem("liarGamePlayerId");
@@ -230,6 +285,7 @@ function App() {
       wasLiar={wasLiar}
       timer={timer}
       messages={messages}
+      playSound={playSound}
     />
   );
 }
@@ -308,6 +364,7 @@ interface GameRoomProps {
   wasLiar: boolean;
   timer: number | null;
   messages: ChatMessage[];
+  playSound: (soundName: string) => void;
 }
 
 const Chat = ({ roomId, messages }: { roomId: string; messages: ChatMessage[] }) => {
@@ -612,6 +669,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
   wasLiar,
   timer,
   messages,
+  playSound,
 }) => {
   const isHost = socket.id === room.hostId;
   const myTurn = socket.id === room.turn;
@@ -646,6 +704,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
     if (!hintData.content.trim()) return alert("힌트를 입력해주세요.");
     socket.emit("submitHint", { roomId: room.roomId, hintData });
     setHint("");
+    playSound("hintSubmitted");
   };
   const handleVote = (votedPlayerId: string) =>
     socket.emit("submitVote", { roomId: room.roomId, votedPlayerId });
