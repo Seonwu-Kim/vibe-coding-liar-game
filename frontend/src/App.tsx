@@ -531,17 +531,17 @@ const GameSettings = ({ room, isHost }: { room: Room; isHost: boolean }) => {
 
   if (!isHost) {
     return (
-      <div className="card-body text-center">
-        <p className="text-muted">
+      <div className="card-body text-center py-2">
+        <p className="text-muted mb-1">
           방장이 게임 설정을 변경하고 있습니다. 잠시만 기다려주세요...
         </p>
-        <div className="mt-3">
-          <h6>선택된 주제: {room.selectedCategories.join(", ")}</h6>
-          <h6>목표 점수: {room.targetScore}</h6>
-          <h6>
+        <div className="mt-2">
+          <h6 className="mb-1">선택된 주제: {room.selectedCategories.join(", ")}</h6>
+          <h6 className="mb-1">목표 점수: {room.targetScore}</h6>
+          <h6 className="mb-1">
             게임 모드: {room.gameMode === "fool" ? "바보 모드" : "일반 모드"}
           </h6>
-          <h6>
+          <h6 className="mb-1">
             라이어 추측 방식:{" "}
             {room.liarGuessType === "card" ? "카드 선택" : "텍스트 입력"}
           </h6>
@@ -554,7 +554,7 @@ const GameSettings = ({ room, isHost }: { room: Room; isHost: boolean }) => {
   }
 
   return (
-    <div className="card-body">
+    <div className="card-body py-2">
       <h5 className="card-title">게임 설정</h5>
       <div className="mb-3">
         <label className="form-label">주제 선택 (1개 이상)</label>
