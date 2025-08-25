@@ -62,3 +62,8 @@
 .timer-display {
   margin-bottom: 1rem;
 }
+
+.current-turn-highlight {
+  border: 3px solid #007bff !important;
+  box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+}

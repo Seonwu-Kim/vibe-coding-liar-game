@@ -853,7 +853,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
                   </div>
                 </div>
               )}
-              <div className="card">
+              <div className={`card ${myTurn && room.gameState === "playing" ? "current-turn-highlight" : ""}`}>
                 <div className="card-header">
                   <h4>게임 현황</h4>
                 </div>
