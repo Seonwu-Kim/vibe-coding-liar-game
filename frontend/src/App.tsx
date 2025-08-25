@@ -241,8 +241,15 @@ function Game() {
 
   useEffect(() => {
     const persistentId = localStorage.getItem("liarGamePlayerId");
-    if (persistentId && roomId) {
+    const storedRoomId = localStorage.getItem("liarGameRoomId");
+
+    if (persistentId && roomId === storedRoomId) {
       socket.emit("reconnectPlayer", { persistentId, roomId });
+    } else {
+      const playerName = localStorage.getItem("liarGamePlayerName");
+      if (playerName) {
+        socket.emit("joinRoom", { playerName, roomId });
+      }
     }
 
     socket.on("updateRoom", (updatedRoom: Room) => {
@@ -328,7 +335,9 @@ const Lobby = () => {
 
   useEffect(() => {
     socket.on("updateRoom", (room: Room) => {
-      navigate(`/room/${room.roomId}`);
+      if (socket.id === room.hostId) {
+        navigate(`/room/${room.roomId}`);
+      }
     });
 
     return () => {
