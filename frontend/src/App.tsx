@@ -72,8 +72,8 @@ interface GameStartPayload {
   word?: string | null;
 }
 
-// const socket = io("https://liar-game-zno1.onrender.com");
-const socket = io("http://localhost:3001");
+const socket = io("https://liar-game-zno1.onrender.com");
+// const socket = io("http://localhost:3001");
 const ALL_CATEGORIES = [
   "영화",
   "음식",
