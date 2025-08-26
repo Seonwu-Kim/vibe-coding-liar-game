@@ -216,7 +216,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
         onMouseLeave={stopDrawing}
         className="border border-gray-300 rounded-lg w-full bg-white"
       />
-      <div className="flex justify-between items-center mt-2">
+      <div className="flex flex-wrap justify-center md:justify-between items-center mt-2 gap-2">
         <div className="flex gap-2">
           {colors.map((c) => (
             <button
@@ -521,7 +521,7 @@ const Lobby = () => {
     <div className="flex items-center justify-center min-h-screen">
       <div className="w-full max-w-md">
         <div className="bg-white p-8 rounded-xl shadow-lg">
-          <h1 className="text-4xl font-bold text-center text-gray-800 mb-6">
+          <h1 className="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-6">
             라이어 게임
           </h1>
           <input
@@ -562,7 +562,7 @@ const JoinRoom = () => {
     <div className="flex items-center justify-center min-h-screen">
       <div className="w-full max-w-md">
         <div className="bg-white p-8 rounded-xl shadow-lg">
-          <h1 className="text-4xl font-bold text-center text-gray-800 mb-6">
+          <h1 className="text-3xl sm:text-4xl font-bold text-center text-gray-800 mb-6">
             라이어 게임
           </h1>
           <h2 className="text-2xl font-semibold text-center text-gray-600 mb-4">
@@ -630,7 +630,7 @@ const Chat = ({
     <div className="bg-white p-6 rounded-xl shadow-md">
       <h3 className="text-lg font-bold text-gray-800 mb-4">채팅</h3>
       <div
-        className="h-96 lg:h-[600px] mb-4 border rounded-lg bg-gray-50 overflow-y-auto p-3 space-y-2"
+        className="h-80 md:h-96 lg:h-[600px] mb-4 border rounded-lg bg-gray-50 overflow-y-auto p-3 space-y-2"
         ref={chatBodyRef}
       >
         {messages.map((msg, index) => (
@@ -992,7 +992,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
                 </button>
               </div>
               {showGameStatus && (
-                <div className="h-96 lg:h-[600px] overflow-y-auto p-4 border rounded-lg bg-gray-50 space-y-4">
+                <div className="h-80 md:h-96 lg:h-[600px] overflow-y-auto p-4 border rounded-lg bg-gray-50 space-y-4">
                   {room.hints.map((h, index) => (
                     <div key={index}>
                       <span className="font-semibold">{h.player.name}:</span>
@@ -1171,7 +1171,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
         <div className="bg-white p-6 rounded-xl shadow-md">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center">
-              <h2 className="text-2xl font-bold text-gray-800 mr-2 my-0">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mr-2 my-0">
                 방: {room.roomId}
               </h2>
               <button
