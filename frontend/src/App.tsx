@@ -1,7 +1,13 @@
-import React, { useState, useEffect, useRef } from "react";
-import { BrowserRouter, Routes, Route, useParams, useNavigate, useLocation } from "react-router-dom";
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  useParams,
+  useNavigate,
+  useLocation,
+} from "react-router-dom";
 import io from "socket.io-client";
-import "./App.css";
 import EmojiPicker, { EmojiClickData } from "emoji-picker-react";
 
 // Type definitions
@@ -66,8 +72,8 @@ interface GameStartPayload {
   word?: string | null;
 }
 
-const socket = io("https://liar-game-zno1.onrender.com");
-// const socket = io("http://localhost:3001");
+// const socket = io("https://liar-game-zno1.onrender.com");
+const socket = io("http://localhost:3001");
 const ALL_CATEGORIES = [
   "영화",
   "음식",
@@ -91,7 +97,27 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
   const [color, setColor] = useState("black");
   const [history, setHistory] = useState<ImageData[]>([]);
 
-  const colors = ["black", "red", "blue", "green", "yellow", "orange", "purple", "white"];
+  const handleUndo = useCallback(() => {
+    if (history.length > 1) {
+      const newHistory = history.slice(0, -1);
+      setHistory(newHistory);
+      const lastState = newHistory[newHistory.length - 1];
+      if (lastState && contextRef.current) {
+        contextRef.current.putImageData(lastState, 0, 0);
+      }
+    }
+  }, [history, contextRef]);
+
+  const colors = [
+    "black",
+    "red",
+    "blue",
+    "green",
+    "yellow",
+    "orange",
+    "purple",
+    "white",
+  ];
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -106,6 +132,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
         context.strokeStyle = color;
         context.lineWidth = 3;
         contextRef.current = context;
+        context.fillStyle = "white";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+
         saveState();
       }
     }, 0);
@@ -117,20 +146,9 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
     }
   }, [color]);
 
-  const handleUndo = () => {
-    if (history.length > 1) {
-      const newHistory = history.slice(0, -1);
-      setHistory(newHistory);
-      const lastState = newHistory[newHistory.length - 1];
-      if (lastState && contextRef.current) {
-        contextRef.current.putImageData(lastState, 0, 0);
-      }
-    }
-  };
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z") {
         e.preventDefault();
         handleUndo();
       }
@@ -139,7 +157,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [history]);
+  }, [handleUndo]);
 
   const saveState = () => {
     const canvas = canvasRef.current;
@@ -189,37 +207,52 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
   };
 
   return (
-    <div className="w-100">
+    <div className="w-full">
       <canvas
         ref={canvasRef}
         onMouseDown={startDrawing}
         onMouseUp={stopDrawing}
         onMouseMove={draw}
         onMouseLeave={stopDrawing}
-        className="border border-dark w-100 bg-white"
+        className="border border-gray-300 rounded-lg w-full bg-white"
       />
-      <div className="d-flex justify-content-between align-items-center mt-2">
-        <div className="d-flex gap-2">
+      <div className="flex justify-between items-center mt-2">
+        <div className="flex gap-2">
           {colors.map((c) => (
             <button
               key={c}
-              className="btn btn-sm"
-              style={{ backgroundColor: c, width: "30px", height: "30px" }}
+              className={`w-8 h-8 rounded-full border-2 ${
+                color === c ? "border-blue-500" : "border-transparent"
+              }`}
+              style={{ backgroundColor: c }}
               onClick={() => setColor(c)}
             />
           ))}
         </div>
-        <div className="d-flex gap-2">
-          <button className="btn btn-secondary" onClick={() => setColor("white")}>
+        <div className="flex gap-2">
+          <button
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded-lg text-sm font-medium transition"
+            onClick={() => setColor("white")}
+          >
             지우개
           </button>
-          <button className="btn btn-secondary" onClick={handleUndo} disabled={history.length <= 1}>
+          <button
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded-lg text-sm font-medium transition"
+            onClick={handleUndo}
+            disabled={history.length <= 1}
+          >
             되돌리기
           </button>
-          <button className="btn btn-secondary" onClick={handleClear}>
+          <button
+            className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-1 rounded-lg text-sm font-medium transition"
+            onClick={handleClear}
+          >
             전체 지우기
           </button>
-          <button className="btn btn-primary" onClick={handleSubmit}>
+          <button
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+            onClick={handleSubmit}
+          >
             힌트 제출
           </button>
         </div>
@@ -231,10 +264,12 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
 function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Lobby />} />
-        <Route path="/room/:roomId" element={<Game />} />
-      </Routes>
+      <div className="bg-gray-100 p-4 lg:p-8">
+        <Routes>
+          <Route path="/" element={<Lobby />} />
+          <Route path="/room/:roomId" element={<Game />} />
+        </Routes>
+      </div>
     </BrowserRouter>
   );
 }
@@ -243,12 +278,23 @@ function Game() {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const [room, setRoom] = useState<Room | null>(location.state?.room || null);
+  const [room, setRoom] = useState<Room | null>(() => {
+    const persistentId = localStorage.getItem("liarGamePlayerId");
+    const storedRoomId = localStorage.getItem("liarGameRoomId");
+    if (persistentId && roomId === storedRoomId) {
+      return null; // 재접속 시에는 room을 null로 시작
+    }
+    return location.state?.room || null;
+  });
   const [playerInfo, setPlayerInfo] = useState<GameStartPayload | null>(null);
   const [wasLiar, setWasLiar] = useState(false);
   const [timer, setTimer] = useState<number | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [playerEmojis, setPlayerEmojis] = useState<{ [key: string]: string }>({});
+  const [reconnecting, setReconnecting] = useState(false);
+  const [isConnected, setIsConnected] = useState(socket.connected);
+  const [playerEmojis, setPlayerEmojis] = useState<{ [key: string]: string }>(
+    {}
+  );
   const [sounds, setSounds] = useState<{
     [key: string]: HTMLAudioElement;
   }>({});
@@ -259,28 +305,42 @@ function Game() {
   };
 
   useEffect(() => {
+    /*
     const soundFiles = {
-      gameStart: "https://assets.mixkit.co/sfx/preview/mixkit-video-game-win-2016.mp3",
-      hintSubmitted: "https://assets.mixkit.co/sfx/preview/mixkit-quick-win-video-game-2010.mp3",
-      votingStarts: "https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.mp3",
-      liarRevealedCorrect: "https://assets.mixkit.co/sfx/preview/mixkit-positive-interface-beep-221.mp3",
-      liarRevealedIncorrect: "https://assets.mixkit.co/sfx/preview/mixkit-game-show-wrong-answer-950.mp3",
-      roundEnd: "https://assets.mixkit.co/sfx/preview/mixkit-video-game-treasure-2066.mp3",
-      gameEnd: "https://assets.mixkit.co/sfx/preview/mixkit-video-game-level-complete-2059.mp3",
+      gameStart:
+        "https://assets.mixkit.co/sfx/preview/mixkit-video-game-win-2016.mp3",
+      hintSubmitted:
+        "https://mixkit.co/sfx/preview/mixkit-quick-win-video-game-2010.mp3",
+      votingStarts:
+        "https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.mp3",
+      liarRevealedCorrect:
+        "https://assets.mixkit.co/sfx/preview/mixkit-positive-interface-beep-221.mp3",
+      liarRevealedIncorrect:
+        "https://assets.mixkit.co/sfx/preview/mixkit-game-show-wrong-answer-950.mp3",
+      roundEnd:
+        "https://assets.mixkit.co/sfx/preview/mixkit-video-game-treasure-2066.mp3",
+      gameEnd:
+        "https://assets.mixkit.co/sfx/preview/mixkit-video-game-level-complete-2059.mp3",
     };
 
     const audioElements: { [key: string]: HTMLAudioElement } = {};
     Object.keys(soundFiles).forEach((key) => {
-      audioElements[key] = new Audio(soundFiles[key as keyof typeof soundFiles]);
+      audioElements[key] = new Audio(
+        soundFiles[key as keyof typeof soundFiles]
+      );
     });
     setSounds(audioElements);
+    */
   }, []);
 
-  const playSound = (soundName: string) => {
-    if (sounds[soundName]) {
-      sounds[soundName].play();
-    }
-  };
+  const playSound = useCallback(
+    (soundName: string) => {
+      if (sounds[soundName]) {
+        sounds[soundName].play();
+      }
+    },
+    [sounds]
+  );
 
   useEffect(() => {
     if (!room) return;
@@ -308,18 +368,26 @@ function Game() {
       default:
         break;
     }
-  }, [room?.gameState]);
+  }, [room?.gameState, playSound, room]);
 
   useEffect(() => {
+    const onConnect = () => setIsConnected(true);
+    const onDisconnect = () => setIsConnected(false);
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+
     const persistentId = localStorage.getItem("liarGamePlayerId");
     const storedRoomId = localStorage.getItem("liarGameRoomId");
 
-    if (persistentId && roomId === storedRoomId) {
+    if (persistentId && roomId === storedRoomId && !room) {
+      setReconnecting(true);
       socket.emit("reconnectPlayer", { persistentId, roomId });
     }
 
-    socket.on("updateRoom", (updatedRoom: Room) => {
+    const handleUpdateRoom = (updatedRoom: Room) => {
       if (updatedRoom.roomId !== roomId) return;
+      setReconnecting(false);
       setRoom(updatedRoom);
       setMessages(updatedRoom.messages || []);
       const me = updatedRoom.players.find((p) => p.id === socket.id);
@@ -331,52 +399,78 @@ function Game() {
         setPlayerInfo(null);
         setWasLiar(false);
       }
-    });
+    };
 
-    socket.on("gameStarted", (payload: GameStartPayload) => {
+    const handleGameStarted = (payload: GameStartPayload) => {
       setPlayerInfo(payload);
       setWasLiar(payload.role === "Liar");
-    });
+    };
 
-    socket.on("youWereTheLiar", () => {
+    const handleYouWereTheLiar = () => {
       setWasLiar(true);
-    });
+    };
 
-    socket.on("timerUpdate", (newTime: number | null) => {
+    const handleTimerUpdate = (newTime: number | null) => {
       setTimer(newTime);
-    });
+    };
 
-    socket.on("newMessage", (message: ChatMessage) => {
+    const handleNewMessage = (message: ChatMessage) => {
       setMessages((prevMessages) => [...prevMessages, message]);
-      if (room && isEmojiOnly(message.message)) {
-        const sender = room.players.find(p => p.name === message.sender);
-        if (sender) {
-          setPlayerEmojis(prev => ({ ...prev, [sender.persistentId]: message.message }));
-          setTimeout(() => {
-            setPlayerEmojis(prev => {
-              const newState = { ...prev };
-              delete newState[sender.persistentId];
-              return newState;
-            });
-          }, 5000);
+      setRoom((prevRoom) => {
+        if (prevRoom && isEmojiOnly(message.message)) {
+          const sender = prevRoom.players.find((p) => p.name === message.sender);
+          if (sender) {
+            setPlayerEmojis((prev) => ({
+              ...prev,
+              [sender.persistentId]: message.message,
+            }));
+            setTimeout(() => {
+              setPlayerEmojis((prev) => {
+                const newState = { ...prev };
+                delete newState[sender.persistentId];
+                return newState;
+              });
+            }, 5000);
+          }
         }
-      }
-    });
+        return prevRoom;
+      });
+    };
 
-    socket.on("error", (error: { message: string }) => {
+    const handleError = (error: { message: string }) => {
+      setReconnecting(false);
       alert(error.message);
       navigate("/");
-    });
+    };
+
+    socket.on("updateRoom", handleUpdateRoom);
+    socket.on("gameStarted", handleGameStarted);
+    socket.on("youWereTheLiar", handleYouWereTheLiar);
+    socket.on("timerUpdate", handleTimerUpdate);
+    socket.on("newMessage", handleNewMessage);
+    socket.on("error", handleError);
 
     return () => {
-      socket.off("updateRoom");
-      socket.off("gameStarted");
-      socket.off("youWereTheLiar");
-      socket.off("timerUpdate");
-      socket.off("newMessage");
-      socket.off("error");
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("updateRoom", handleUpdateRoom);
+      socket.off("gameStarted", handleGameStarted);
+      socket.off("youWereTheLiar", handleYouWereTheLiar);
+      socket.off("timerUpdate", handleTimerUpdate);
+      socket.off("newMessage", handleNewMessage);
+      socket.off("error", handleError);
     };
-  }, [roomId, navigate, room]);
+  }, [roomId, navigate]);
+
+  if (reconnecting || !isConnected) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-2xl font-bold text-gray-700">
+          {reconnecting ? "재접속 중입니다..." : "연결 중입니다..."}
+        </div>
+      </div>
+    );
+  }
 
   if (!room) {
     return <JoinRoom />;
@@ -397,24 +491,23 @@ function Game() {
 
 const Lobby = () => {
   const navigate = useNavigate();
-  const [playerName, setPlayerName] = useState(
-    localStorage.getItem("liarGamePlayerName") || ""
-  );
-
-  useEffect(() => {
-    localStorage.setItem("liarGamePlayerName", playerName);
-  }, [playerName]);
+  const [playerName, setPlayerName] = useState(() => {
+    return localStorage.getItem("liarGamePlayerName") || "";
+  });
 
   const handleCreateRoom = () => {
     if (!playerName) {
       alert("이름을 입력해주세요.");
       return;
     }
+    localStorage.setItem("liarGamePlayerName", playerName);
     socket.emit("createRoom", { playerName });
   };
 
   useEffect(() => {
-    const handleRoomCreated = (room: Room) => {
+    const handleRoomCreated = ({ room, persistentId }: { room: Room, persistentId: string }) => {
+      localStorage.setItem("liarGamePlayerId", persistentId);
+      localStorage.setItem("liarGameRoomId", room.roomId);
       navigate(`/room/${room.roomId}`, { state: { room } });
     };
     socket.on("roomCreated", handleRoomCreated);
@@ -425,25 +518,25 @@ const Lobby = () => {
   }, [navigate]);
 
   return (
-    <div className="container text-center">
-      <div className="row justify-content-center">
-        <div className="col-md-6">
-          <h1 className="my-4">라이어 게임</h1>
-          <div className="card p-4">
-            <h2 className="mb-4">새로운 게임 시작</h2>
-            <input
-              type="text"
-              className="form-control mb-3"
-              placeholder="이름을 입력하세요"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-            />
-            <div className="d-grid gap-2">
-              <button className="btn btn-primary" onClick={handleCreateRoom}>
-                방 만들기
-              </button>
-            </div>
-          </div>
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="w-full max-w-md">
+        <div className="bg-white p-8 rounded-xl shadow-lg">
+          <h1 className="text-4xl font-bold text-center text-gray-800 mb-6">
+            라이어 게임
+          </h1>
+          <input
+            type="text"
+            className="w-full border border-gray-300 rounded-lg p-3 text-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="이름을 입력하세요"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+          />
+          <button
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg text-lg font-bold transition"
+            onClick={handleCreateRoom}
+          >
+            방 만들기
+          </button>
         </div>
       </div>
     </div>
@@ -452,42 +545,42 @@ const Lobby = () => {
 
 const JoinRoom = () => {
   const { roomId } = useParams();
-  const [playerName, setPlayerName] = useState(
-    localStorage.getItem("liarGamePlayerName") || ""
-  );
-
-  useEffect(() => {
-    localStorage.setItem("liarGamePlayerName", playerName);
-  }, [playerName]);
+  const [playerName, setPlayerName] = useState(() => {
+    return localStorage.getItem("liarGamePlayerName") || "";
+  });
 
   const handleJoinRoom = () => {
     if (!playerName) {
       alert("이름을 입력해주세요.");
       return;
     }
+    localStorage.setItem("liarGamePlayerName", playerName);
     socket.emit("joinRoom", { playerName, roomId });
   };
 
   return (
-    <div className="container text-center">
-      <div className="row justify-content-center">
-        <div className="col-md-6">
-          <h1 className="my-4">라이어 게임</h1>
-          <div className="card p-4">
-            <h2 className="mb-4">게임에 참가하기</h2>
-            <input
-              type="text"
-              className="form-control mb-3"
-              placeholder="이름을 입력하세요"
-              value={playerName}
-              onChange={(e) => setPlayerName(e.target.value)}
-            />
-            <div className="d-grid gap-2">
-              <button className="btn btn-primary" onClick={handleJoinRoom}>
-                참가하기
-              </button>
-            </div>
-          </div>
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="w-full max-w-md">
+        <div className="bg-white p-8 rounded-xl shadow-lg">
+          <h1 className="text-4xl font-bold text-center text-gray-800 mb-6">
+            라이어 게임
+          </h1>
+          <h2 className="text-2xl font-semibold text-center text-gray-600 mb-4">
+            방 참가하기
+          </h2>
+          <input
+            type="text"
+            className="w-full border border-gray-300 rounded-lg p-3 text-lg mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="이름을 입력하세요"
+            value={playerName}
+            onChange={(e) => setPlayerName(e.target.value)}
+          />
+          <button
+            className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg text-lg font-bold transition"
+            onClick={handleJoinRoom}
+          >
+            참가하기
+          </button>
         </div>
       </div>
     </div>
@@ -504,9 +597,13 @@ interface GameRoomProps {
   playerEmojis: { [key: string]: string };
 }
 
-
-
-const Chat = ({ roomId, messages }: { roomId: string; messages: ChatMessage[] }) => {
+const Chat = ({
+  roomId,
+  messages,
+}: {
+  roomId: string;
+  messages: ChatMessage[];
+}) => {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const chatBodyRef = useRef<HTMLDivElement>(null);
@@ -526,39 +623,48 @@ const Chat = ({ roomId, messages }: { roomId: string; messages: ChatMessage[] })
   };
 
   const onEmojiClick = (emojiData: EmojiClickData) => {
-    setMessage(prevMessage => prevMessage + emojiData.emoji);
-  }
+    setMessage((prevMessage) => prevMessage + emojiData.emoji);
+  };
 
   return (
-    <div className="card mt-3">
-      <div className="card-header">채팅</div>
-      <div className="card-body chat-box" ref={chatBodyRef}>
+    <div className="bg-white p-6 rounded-xl shadow-md">
+      <h3 className="text-lg font-bold text-gray-800 mb-4">채팅</h3>
+      <div
+        className="h-96 lg:h-[600px] mb-4 border rounded-lg bg-gray-50 overflow-y-auto p-3 space-y-2"
+        ref={chatBodyRef}
+      >
         {messages.map((msg, index) => (
-          <div key={index} className="mb-2">
-            <strong>{msg.sender}:</strong> {msg.message}
+          <div key={index}>
+            <span className="font-semibold">{msg.sender}:</span> {msg.message}
           </div>
         ))}
       </div>
-      <div className="card-footer position-relative">
+      <div className="relative">
         {showEmojiPicker && (
-          <div className="emoji-picker-container">
+          <div className="absolute bottom-full right-0 mb-2">
             <EmojiPicker onEmojiClick={onEmojiClick} />
           </div>
         )}
-        <div className="input-group">
+        <div className="flex items-center">
           <input
-            type="text"
-            className="form-control"
+            className="flex-grow border border-gray-300 rounded-l-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="메시지를 입력하세요"
+            type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
           />
-          <button className="btn btn-outline-secondary" type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)}>
+          <button
+            className="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-3 border-t border-b border-gray-300"
+            onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+          >
             😊
           </button>
-          <button className="btn btn-primary" onClick={handleSendMessage}>
-            전송
+          <button
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-r-lg flex items-center justify-center transition"
+            onClick={handleSendMessage}
+          >
+            <span className="material-symbols-outlined">send</span>
           </button>
         </div>
       </div>
@@ -608,59 +714,67 @@ const GameSettings = ({ room, isHost }: { room: Room; isHost: boolean }) => {
 
   if (!isHost) {
     return (
-      <div className="card-body text-center py-2">
-        <p className="text-muted mb-1">
+      <div className="p-6 text-center">
+        <p className="text-gray-600 mb-4">
           방장이 게임 설정을 변경하고 있습니다. 잠시만 기다려주세요...
         </p>
-        <div className="mt-2">
-          <h6 className="mb-1">선택된 주제: {room.selectedCategories.join(", ")}</h6>
-          <h6 className="mb-1">목표 점수: {room.targetScore}</h6>
-          <h6 className="mb-1">
-            게임 모드: {room.gameMode === "fool" ? "바보 모드" : "일반 모드"}
-          </h6>
-          <h6 className="mb-1">
-            라이어 추측 방식:{" "}
+        <div className="space-y-2 text-left mx-auto max-w-xs">
+          <p>
+            <span className="font-semibold">선택된 주제:</span>{" "}
+            {room.selectedCategories.join(", ")}
+          </p>
+          <p>
+            <span className="font-semibold">목표 점수:</span> {room.targetScore}
+          </p>
+          <p>
+            <span className="font-semibold">게임 모드:</span>{" "}
+            {room.gameMode === "fool" ? "바보 모드" : "일반 모드"}
+          </p>
+          <p>
+            <span className="font-semibold">라이어 추측 방식:</span>{" "}
             {room.liarGuessType === "card" ? "카드 선택" : "텍스트 입력"}
-          </h6>
-          <h6>
-            힌트 방식: {room.hintType === "drawing" ? "그림판" : "텍스트"}
-          </h6>
+          </p>
+          <p>
+            <span className="font-semibold">힌트 방식:</span>{" "}
+            {room.hintType === "drawing" ? "그림판" : "텍스트"}
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="card-body py-2">
-      <h5 className="card-title">게임 설정</h5>
-      <div className="mb-3">
-        <label className="form-label">주제 선택 (1개 이상)</label>
-        <div className="d-flex flex-wrap">
+    <div className="p-6 space-y-4">
+      <h3 className="text-lg font-bold text-gray-800">게임 설정</h3>
+      <div>
+        <label className="block font-medium text-gray-700 mb-2">
+          주제 선택 (1개 이상)
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
           {ALL_CATEGORIES.map((category) => (
-            <div key={category} className="form-check form-check-inline">
+            <label
+              key={category}
+              className="flex items-center space-x-2 p-2 rounded-lg border border-gray-200 cursor-pointer hover:bg-gray-50"
+            >
               <input
-                className="form-check-input"
                 type="checkbox"
-                id={`category-${category}`}
+                className="form-checkbox h-5 w-5 text-blue-600"
                 value={category}
                 checked={settings.selectedCategories.includes(category)}
                 onChange={() => handleCategoryChange(category)}
               />
-              <label
-                className="form-check-label"
-                htmlFor={`category-${category}`}
-              >
-                {category}
-              </label>
-            </div>
+              <span className="text-gray-700">{category}</span>
+            </label>
           ))}
         </div>
       </div>
-      <div className="mb-3">
-        <label className="form-label">목표 점수</label>
+      <div>
+        <label className="block font-medium text-gray-700 mb-1">
+          목표 점수
+        </label>
         <input
           type="number"
-          className="form-control"
+          className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           value={settings.targetScore}
           onChange={(e) =>
             handleSettingsChange({
@@ -670,127 +784,57 @@ const GameSettings = ({ room, isHost }: { room: Room; isHost: boolean }) => {
           min="1"
         />
       </div>
-      <div className="mb-3">
-        <label className="form-label">게임 모드</label>
-        <div className="d-flex">
-          <div className="form-check form-check-inline">
-            <input
-              className="form-check-input"
-              type="radio"
-              name="gameMode"
-              id="normalMode"
-              value="normal"
-              checked={settings.gameMode === "normal"}
-              onChange={(e) =>
-                handleSettingsChange({
-                  gameMode: e.target.value as "normal" | "fool",
-                })
-              }
-            />
-            <label className="form-check-label" htmlFor="normalMode">
-              일반 모드
-            </label>
-          </div>
-          <div className="form-check form-check-inline">
-            <input
-              className="form-check-input"
-              type="radio"
-              name="gameMode"
-              id="foolMode"
-              value="fool"
-              checked={settings.gameMode === "fool"}
-              onChange={(e) =>
-                handleSettingsChange({
-                  gameMode: e.target.value as "normal" | "fool",
-                })
-              }
-            />
-            <label className="form-check-label" htmlFor="foolMode">
-              바보 모드
-            </label>
-          </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <label className="block font-medium text-gray-700 mb-1">
+            게임 모드
+          </label>
+          <select
+            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={settings.gameMode}
+            onChange={(e) =>
+              handleSettingsChange({
+                gameMode: e.target.value as "normal" | "fool",
+              })
+            }
+          >
+            <option value="normal">일반 모드</option>
+            <option value="fool">바보 모드</option>
+          </select>
         </div>
-      </div>
-      <div className="mb-3">
-        <label className="form-label">라이어 추측 방식</label>
-        <div className="d-flex">
-          <div className="form-check form-check-inline">
-            <input
-              className="form-check-input"
-              type="radio"
-              name="liarGuessType"
-              id="textGuess"
-              value="text"
-              checked={settings.liarGuessType === "text"}
-              onChange={(e) =>
-                handleSettingsChange({
-                  liarGuessType: e.target.value as "text" | "card",
-                })
-              }
-            />
-            <label className="form-check-label" htmlFor="textGuess">
-              텍스트 입력
-            </label>
-          </div>
-          <div className="form-check form-check-inline">
-            <input
-              className="form-check-input"
-              type="radio"
-              name="liarGuessType"
-              id="cardGuess"
-              value="card"
-              checked={settings.liarGuessType === "card"}
-              onChange={(e) =>
-                handleSettingsChange({
-                  liarGuessType: e.target.value as "text" | "card",
-                })
-              }
-            />
-            <label className="form-check-label" htmlFor="cardGuess">
-              카드 선택
-            </label>
-          </div>
+        <div>
+          <label className="block font-medium text-gray-700 mb-1">
+            라이어 추측
+          </label>
+          <select
+            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={settings.liarGuessType}
+            onChange={(e) =>
+              handleSettingsChange({
+                liarGuessType: e.target.value as "text" | "card",
+              })
+            }
+          >
+            <option value="text">텍스트 입력</option>
+            <option value="card">카드 선택</option>
+          </select>
         </div>
-      </div>
-      <div className="mb-3">
-        <label className="form-label">힌트 방식</label>
-        <div className="d-flex">
-          <div className="form-check form-check-inline">
-            <input
-              className="form-check-input"
-              type="radio"
-              name="hintType"
-              id="textHint"
-              value="text"
-              checked={settings.hintType === "text"}
-              onChange={(e) =>
-                handleSettingsChange({
-                  hintType: e.target.value as "text" | "drawing",
-                })
-              }
-            />
-            <label className="form-check-label" htmlFor="textHint">
-              텍스트
-            </label>
-          </div>
-          <div className="form-check form-check-inline">
-            <input
-              className="form-check-input"
-              type="radio"
-              name="hintType"
-              id="drawingHint"
-              value="drawing"
-              checked={settings.hintType === "drawing"}
-              onChange={(e) =>
-                handleSettingsChange({
-                  hintType: e.target.value as "text" | "drawing",
-                })
-              }
-            />
-            <label className="form-check-label" htmlFor="drawingHint">
-              그림판
-            </label>
-          </div>
+        <div>
+          <label className="block font-medium text-gray-700 mb-1">
+            힌트 방식
+          </label>
+          <select
+            className="w-full border border-gray-300 rounded-lg p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            value={settings.hintType}
+            onChange={(e) =>
+              handleSettingsChange({
+                hintType: e.target.value as "text" | "drawing",
+              })
+            }
+          >
+            <option value="text">텍스트</option>
+            <option value="drawing">그림판</option>
+          </select>
         </div>
       </div>
     </div>
@@ -809,9 +853,10 @@ const TimerDisplay = ({
   }
   const message = gameState === "playing" ? "힌트 제출까지" : "투표 마감까지";
   return (
-    <div className="timer-display alert alert-warning text-center py-2">
-      <span className="me-2">{message}</span>
-      <strong>{timer}초</strong>
+    <div className="bg-yellow-100 border border-yellow-200 text-yellow-800 text-center py-3 rounded-lg shadow-sm">
+      <p>
+        {message} <span className="font-bold">{timer}초</span>
+      </p>
     </div>
   );
 };
@@ -833,8 +878,9 @@ const GameRoom: React.FC<GameRoomProps> = ({
   const [hint, setHint] = useState("");
   const [liarGuess, setLiarGuess] = useState("");
   const [showCopyMessage, setShowCopyMessage] = useState(false);
-  const chatBodyRef = useRef<HTMLDivElement>(null);
   const hintInputRef = useRef<HTMLInputElement>(null);
+
+  const [showGameStatus, setShowGameStatus] = useState(true);
 
   const voteCounts: { [key: string]: number } = {};
   if (room.votes) {
@@ -844,12 +890,11 @@ const GameRoom: React.FC<GameRoomProps> = ({
   }
 
   useEffect(() => {
-    if (chatBodyRef.current) {
-      chatBodyRef.current.scrollTop = chatBodyRef.current.scrollHeight;
+    if (myTurn && room.gameState === "playing" && room.hintType === "drawing") {
+      setShowGameStatus(false);
+    } else {
+      setShowGameStatus(true);
     }
-  }, [room.hints, room.voteResult, room.liarGuessResult]);
-
-  useEffect(() => {
     if (myTurn && room.gameState === "playing" && room.hintType === "text") {
       hintInputRef.current?.focus();
     }
@@ -881,10 +926,12 @@ const GameRoom: React.FC<GameRoomProps> = ({
     navigate("/");
   };
   const handleCopyRoomId = () => {
-    navigator.clipboard.writeText(`${window.location.origin}/room/${room.roomId}`).then(() => {
-      setShowCopyMessage(true);
-      setTimeout(() => setShowCopyMessage(false), 2000);
-    });
+    navigator.clipboard
+      .writeText(`${window.location.origin}/room/${room.roomId}`)
+      .then(() => {
+        setShowCopyMessage(true);
+        setTimeout(() => setShowCopyMessage(false), 2000);
+      });
   };
 
   const turnPlayer = room.players.find((p) => p.id === room.turn);
@@ -892,328 +939,362 @@ const GameRoom: React.FC<GameRoomProps> = ({
   const showLiarGuessInput = room.gameState === "liarGuess" && wasLiar;
 
   return (
-    <div className="container mt-4">
-      <div className="row">
-        <div className="col-md-8">
-          <TimerDisplay timer={timer} gameState={room.gameState} />
-          {room.gameState === "waiting" ? (
-            <div className="card">
-              <div className="card-header">
-                <h4>게임 설정</h4>
-              </div>
-              <GameSettings room={room} isHost={isHost} />
-            </div>
-          ) : (
-            <>
-              {playerInfo && (
-                <div className="card mb-2">
-                  <div className="card-body py-2">
-                    <h5 className="card-title">
-                      당신은{" "}
-                      <span
-                        className={
-                          playerInfo.role === "Liar"
-                            ? "text-danger"
-                            : "text-success"
-                        }
-                      >
-                        {playerInfo.role === "Liar" ? "라이어" : "시민"}
-                      </span>{" "}
-                      입니다
-                    </h5>
-                    <p className="card-text mb-0">
-                      이번 라운드 주제: {playerInfo.category}
+    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="lg:col-span-2 space-y-6">
+        <TimerDisplay timer={timer} gameState={room.gameState} />
+        {room.gameState === "waiting" ? (
+          <div className="bg-white rounded-xl shadow-md">
+            <GameSettings room={room} isHost={isHost} />
+          </div>
+        ) : (
+          <>
+            {playerInfo && (
+              <div className="bg-white p-6 rounded-xl shadow-md">
+                <h2 className="text-xl font-bold text-gray-800 mb-2">
+                  당신은{" "}
+                  <span
+                    className={
+                      playerInfo.role === "Liar"
+                        ? "text-red-500"
+                        : "text-green-500"
+                    }
+                  >
+                    {playerInfo.role === "Liar" ? "라이어" : "시민"}
+                  </span>{" "}
+                  입니다
+                </h2>
+                <p className="text-gray-600 mb-1">
+                  이번 라운드 주제: {playerInfo.category}
+                </p>
+                {playerInfo.word ? (
+                  <p className="text-gray-800 font-semibold">
+                    제시어: <strong>{playerInfo.word}</strong>
+                  </p>
+                ) : (
+                  room.gameMode !== "fool" && (
+                    <p className="text-red-500 font-semibold">
+                      당신은 라이어입니다. 제시어를 추리하세요!
                     </p>
-                    {playerInfo.word ? (
-                      <p className="card-text mb-0">
-                        제시어: <strong>{playerInfo.word}</strong>
-                      </p>
-                    ) : (
-                      room.gameMode !== "fool" && (
-                        <p className="card-text mb-0 text-danger">
-                          당신은 라이어입니다. 제시어를 추리하세요!
-                        </p>
-                      )
-                    )}
-                  </div>
-                </div>
-              )}
-              <div className={`card ${myTurn && room.gameState === "playing" ? "current-turn-highlight" : ""}`}>
-                <div className="card-header">
-                  <h4>게임 현황</h4>
-                </div>
-                <div className="card-body chat-box" ref={chatBodyRef} style={{ height: "400px", overflowY: "auto" }}>
+                  )
+                )}
+              </div>
+            )}
+            <div className="bg-white p-6 rounded-xl shadow-md">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold text-gray-800">게임 현황</h3>
+                <button
+                  onClick={() => setShowGameStatus(!showGameStatus)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <span className="material-symbols-outlined">
+                    {showGameStatus ? "expand_less" : "expand_more"}
+                  </span>
+                </button>
+              </div>
+              {showGameStatus && (
+                <div className="h-96 lg:h-[600px] overflow-y-auto p-4 border rounded-lg bg-gray-50 space-y-4">
                   {room.hints.map((h, index) => (
-                    <div key={index} className="mb-2">
-                      <strong>{h.player.name}:</strong>
+                    <div key={index}>
+                      <span className="font-semibold">{h.player.name}:</span>
                       {h.type === "text" ? (
-                        <p className="card-text d-inline ms-2">{h.content}</p>
+                        <span className="ml-2">{h.content}</span>
                       ) : (
                         <img
                           src={h.content}
                           alt={`${h.player.name}의 힌트`}
-                          className="img-fluid border rounded mt-1"
+                          className="block mt-1 border rounded-md"
                         />
                       )}
                     </div>
                   ))}
                   {room.gameState === "playing" && turnPlayer && (
-                    <p className="text-muted">
-                      <em>{turnPlayer.name}님의 차례입니다...</em>
+                    <p className="text-gray-500 italic">
+                      {turnPlayer.name}님의 차례입니다...
                     </p>
                   )}
                   {room.gameState === "voting" && (
-                    <p className="text-primary">
-                      <em>
-                        모든 힌트가 제출되었습니다! 라이어라고 생각하는 사람에게
-                        투표하세요.
-                      </em>
+                    <p className="text-blue-600 font-semibold">
+                      모든 힌트가 제출되었습니다! 라이어라고 생각하는 사람에게
+                      투표하세요.
                     </p>
                   )}
                   {room.voteResult && (
                     <div
-                      className={`alert mt-3 ${
+                      className={`p-4 rounded-lg ${
                         room.voteResult.isLiar
-                          ? "alert-success"
-                          : "alert-danger"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
                       }`}
                     >
-                      <h5>투표 결과</h5>
+                      <h4 className="font-bold">투표 결과</h4>
                       <p>
                         {room.voteResult.mostVotedPlayer.name}님이
                         지목되었습니다.
                       </p>
                       <p>
-                        <strong>
-                          그는{" "}
+                        그는{" "}
+                        <span className="font-bold">
                           {room.voteResult.isLiar
                             ? "라이어였습니다!"
                             : "시민이었습니다."}
-                        </strong>
+                        </span>
                       </p>
                     </div>
                   )}
                   {room.liarGuessResult && (
                     <div
-                      className={`alert mt-3 ${
+                      className={`p-4 rounded-lg ${
                         room.liarGuessResult.correct
-                          ? "alert-success"
-                          : "alert-danger"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-red-100 text-red-800"
                       }`}
                     >
-                      <h5>라이어의 추측</h5>
+                      <h4 className="font-bold">라이어의 추측</h4>
                       <p>라이어의 추측: "{room.liarGuessResult.guess}"</p>
                       <p>
-                        <strong>
+                        <span className="font-bold">
                           추측이{" "}
                           {room.liarGuessResult.correct
                             ? "정확했습니다!"
                             : "틀렸습니다."}
-                        </strong>
+                        </span>
                       </p>
                     </div>
                   )}
                   {(room.gameState === "roundOver" ||
                     room.gameState === "finished") && (
-                    <div className="alert alert-info mt-3">
-                      <h4>
+                    <div className="p-4 rounded-lg bg-blue-100 text-blue-800">
+                      <h4 className="font-bold">
                         {room.gameState === "finished"
                           ? "최종 우승!"
                           : "라운드 종료!"}
                       </h4>
                       {room.gameState === "finished" && winner && (
                         <p>
-                          <strong>{winner.name}</strong> 님이 목표 점수{" "}
-                          {room.targetScore}점에 도달하여 최종 우승했습니다!
+                          <span className="font-bold">{winner.name}</span> 님이
+                          목표 점수 {room.targetScore}점에 도달하여 최종
+                          우승했습니다!
                         </p>
                       )}
                       <p>
-                        정답은 '<strong>{room.word}</strong>'였습니다.
+                        정답은 '<span className="font-bold">{room.word}</span>
+                        '였습니다.
                       </p>
                     </div>
                   )}
                 </div>
-                {room.gameState === "playing" && myTurn && (
-                  <div className="card-footer">
-                    {room.hintType === "drawing" ? (
-                      <DrawingCanvas
-                        onSubmit={(dataUrl) =>
-                          handleSubmitHint({
-                            type: "drawing",
-                            content: dataUrl,
-                          })
+              )}
+              {room.gameState === "playing" && myTurn && (
+                <div className="mt-4">
+                  {room.hintType === "drawing" ? (
+                    <DrawingCanvas
+                      onSubmit={(dataUrl) =>
+                        handleSubmitHint({
+                          type: "drawing",
+                          content: dataUrl,
+                        })
+                      }
+                    />
+                  ) : (
+                    <div className="flex items-center">
+                      <input
+                        ref={hintInputRef}
+                        type="text"
+                        className="flex-grow border border-gray-300 rounded-l-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="힌트를 입력하세요"
+                        value={hint}
+                        onChange={(e) => setHint(e.target.value)}
+                        onKeyPress={(e) =>
+                          e.key === "Enter" &&
+                          handleSubmitHint({ type: "text", content: hint })
                         }
                       />
-                    ) : (
-                      <div className="input-group">
-                        <input
-                          ref={hintInputRef}
-                          type="text"
-                          className="form-control"
-                          placeholder="힌트를 입력하세요"
-                          value={hint}
-                          onChange={(e) => setHint(e.target.value)}
-                          onKeyPress={(e) =>
-                            e.key === "Enter" &&
-                            handleSubmitHint({ type: "text", content: hint })
-                          }
-                        />
-                        <button
-                          className="btn btn-primary"
-                          onClick={() =>
-                            handleSubmitHint({ type: "text", content: hint })
-                          }
-                        >
-                          제출
-                        </button>
+                      <button
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-r-lg transition"
+                        onClick={() =>
+                          handleSubmitHint({ type: "text", content: hint })
+                        }
+                      >
+                        제출
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+              {showLiarGuessInput && (
+                <div className="mt-4">
+                  {room.liarGuessType === "card" ? (
+                    <div>
+                      <p className="text-center mb-2 font-semibold">
+                        제시어라고 생각되는 카드를 고르세요!
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-2">
+                        {room.liarGuessCards.map((cardWord) => (
+                          <button
+                            key={cardWord}
+                            className="bg-white hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 border border-gray-400 rounded shadow"
+                            onClick={() => handleLiarGuess(cardWord)}
+                          >
+                            {cardWord}
+                          </button>
+                        ))}
                       </div>
-                    )}
-                  </div>
-                )}
-                {showLiarGuessInput && (
-                  <div className="card-footer">
-                    {room.liarGuessType === "card" ? (
-                      <div>
-                        <p className="text-center mb-2">
-                          제시어라고 생각되는 카드를 고르세요!
-                        </p>
-                        <div className="d-flex flex-wrap justify-content-center gap-2">
-                          {room.liarGuessCards.map((cardWord) => (
-                            <button
-                              key={cardWord}
-                              className="btn btn-outline-primary"
-                              onClick={() => handleLiarGuess(cardWord)}
-                            >
-                              {cardWord}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="input-group">
-                        <input
-                          type="text"
-                          className="form-control"
-                          placeholder="단어를 맞혀보세요!"
-                          value={liarGuess}
-                          onChange={(e) => setLiarGuess(e.target.value)}
-                          onKeyPress={(e) =>
-                            e.key === "Enter" && handleLiarGuess(liarGuess)
-                          }
-                        />
-                        <button
-                          className="btn btn-danger"
-                          onClick={() => handleLiarGuess(liarGuess)}
-                        >
-                          최종 추측
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center">
+                      <input
+                        type="text"
+                        className="flex-grow border border-gray-300 rounded-l-lg p-3 focus:outline-none focus:ring-2 focus:ring-red-500"
+                        placeholder="단어를 맞혀보세요!"
+                        value={liarGuess}
+                        onChange={(e) => setLiarGuess(e.target.value)}
+                        onKeyPress={(e) =>
+                          e.key === "Enter" && handleLiarGuess(liarGuess)
+                        }
+                      />
+                      <button
+                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-r-lg transition"
+                        onClick={() => handleLiarGuess(liarGuess)}
+                      >
+                        최종 추측
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
 
-        <div className="col-md-4">
-          <div className="card">
-            <div className="card-header d-flex justify-content-between align-items-center">
-              <div className="d-flex align-items-center position-relative">
-                <h3>방: {room.roomId}</h3>
-                <button
-                  className="btn btn-sm btn-outline-secondary ms-2"
-                  onClick={handleCopyRoomId}
-                  title="방 ID 복사"
-                >
-                  <i className="bi bi-clipboard"></i>
-                </button>
-                {showCopyMessage && (
-                  <span className="copy-tooltip">복사 완료!</span>
-                )}
-              </div>
+      <div className="space-y-6">
+        <div className="bg-white p-6 rounded-xl shadow-md">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center">
+              <h2 className="text-2xl font-bold text-gray-800 mr-2 my-0">
+                방: {room.roomId}
+              </h2>
               <button
-                className="btn btn-sm btn-outline-danger"
-                onClick={handleLeaveRoom}
+                className="text-gray-500 hover:text-gray-700 relative"
+                onClick={handleCopyRoomId}
+                title="방 ID 복사"
               >
-                방 나가기
+                <span className="material-symbols-outlined">content_copy</span>
+                {showCopyMessage && (
+                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded py-1 px-2">
+                    복사 완료!
+                  </span>
+                )}
               </button>
             </div>
-            <div className="card-body">
-              <h5 className="card-title">
+            <button
+              className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+              onClick={handleLeaveRoom}
+            >
+              방 나가기
+            </button>
+          </div>
+          <div>
+            <p className="text-gray-600">
+              <span className="font-semibold">
                 플레이어 ({room.players.length}) / 목표: {room.targetScore}점
-              </h5>
-              <p className="card-subtitle mb-2 text-muted">
-                게임 모드:{" "}
-                {room.gameMode === "fool" ? "바보 모드" : "일반 모드"}
-              </p>
-              <ul className="list-group mb-3">
-                {room.players.map((player) => {
-                  const count = voteCounts[player.id] || 0;
-                  const emoji = playerEmojis[player.persistentId];
-                  return (
-                    <li
-                      key={player.persistentId}
-                      className={`list-group-item d-flex justify-content-between align-items-center ${
-                        room.turn === player.id ? "active" : ""
+              </span>
+            </p>
+            <p className="text-gray-600">
+              게임 모드: {room.gameMode === "fool" ? "바보 모드" : "일반 모드"}
+            </p>
+          </div>
+          <div className="mt-6 space-y-3">
+            {room.players.map((player) => {
+              const count = voteCounts[player.id] || 0;
+              const emoji = playerEmojis[player.persistentId];
+              const isMyTurn = room.turn === player.id;
+              return (
+                <div
+                  key={player.persistentId}
+                  className={`flex justify-between items-center p-3 rounded-lg ${
+                    isMyTurn ? "bg-blue-500 text-white" : "bg-gray-100"
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <span className="font-medium">{player.name}</span>
+                    {emoji && <span className="ml-2 text-xl">{emoji}</span>}
+                    {room.hostId === player.id && (
+                      <span
+                        className={`text-xs font-bold px-2 py-1 rounded-full ml-2 ${
+                          isMyTurn
+                            ? "bg-blue-400 text-white"
+                            : "bg-blue-200 text-blue-800"
+                        }`}
+                      >
+                        방장
+                      </span>
+                    )}
+                    {count > 0 && (
+                      <span
+                        className={`text-xs font-bold px-2 py-1 rounded-full ml-2 ${
+                          isMyTurn
+                            ? "bg-red-400 text-white"
+                            : "bg-red-200 text-red-800"
+                        }`}
+                      >
+                        {count} 표
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-x-2">
+                    <span
+                      className={`text-sm font-bold px-3 py-1 rounded-full ${
+                        isMyTurn
+                          ? "bg-white text-blue-500"
+                          : "bg-gray-300 text-gray-700"
                       }`}
                     >
-                      <div className="d-flex align-items-center">
-                        {player.name}
-                        {emoji && <span className="speech-bubble ms-2">{emoji}</span>}
-                        {room.hostId === player.id && (
-                          <span className="badge bg-primary ms-2">방장</span>
-                        )}
-                        {count > 0 && (
-                          <span className="badge bg-danger ms-2">
-                            {count} 표
-                          </span>
-                        )}
-                      </div>
-                      <span className="badge bg-info">{player.score}점</span>
-                      {room.gameState === "voting" && (
-                        <button
-                          className="btn btn-sm btn-warning"
-                          onClick={() => handleVote(player.id)}
-                          disabled={hasVoted || player.id === socket.id}
-                        >
-                          투표
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-              {isHost && room.gameState === "waiting" && (
-                <button
-                  className="btn btn-success w-100"
-                  onClick={handleStartNextRound}
-                  disabled={room.players.length < 2}
-                >
-                  게임 시작 (
-                  {room.players.length < 2 ? "플레이어 더 필요" : "준비 완료"})
-                </button>
-              )}
-              {isHost && room.gameState === "roundOver" && (
-                <button
-                  className="btn btn-info w-100"
-                  onClick={handleStartNextRound}
-                >
-                  다음 라운드 시작
-                </button>
-              )}
-              {isHost && room.gameState === "finished" && (
-                <button
-                  className="btn btn-danger w-100"
-                  onClick={handleRestartGame}
-                >
-                  완전히 새로 시작 (점수 초기화)
-                </button>
-              )}
-            </div>
+                      {player.score}점
+                    </span>
+                    {room.gameState === "voting" && (
+                      <button
+                        className="bg-yellow-400 hover:bg-yellow-500 text-white text-xs font-bold py-1 px-2 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => handleVote(player.id)}
+                        disabled={hasVoted || player.id === socket.id}
+                      >
+                        투표
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-          <Chat roomId={room.roomId} messages={messages} />
+          <div className="mt-6">
+            {isHost && room.gameState === "waiting" && (
+              <button
+                className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-3 rounded-lg text-lg font-bold transition disabled:opacity-50"
+                onClick={handleStartNextRound}
+                disabled={room.players.length < 2}
+              >
+                {room.players.length < 2 ? "플레이어 더 필요" : "게임 시작"}
+              </button>
+            )}
+            {isHost && room.gameState === "roundOver" && (
+              <button
+                className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-3 rounded-lg text-lg font-bold transition"
+                onClick={handleStartNextRound}
+              >
+                다음 라운드 시작
+              </button>
+            )}
+            {isHost && room.gameState === "finished" && (
+              <button
+                className="w-full bg-red-500 hover:bg-red-600 text-white px-4 py-3 rounded-lg text-lg font-bold transition"
+                onClick={handleRestartGame}
+              >
+                새 게임 시작 (점수 초기화)
+              </button>
+            )}
+          </div>
         </div>
+        <Chat roomId={room.roomId} messages={messages} />
       </div>
     </div>
   );

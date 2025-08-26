@@ -190,7 +190,7 @@ io.on("connection", (socket) => {
       ...resetRoundState({ roomId }),
     };
     socket.join(roomId);
-    socket.emit("roomCreated", rooms[roomId]);
+    socket.emit("roomCreated", { room: rooms[roomId], persistentId: player.persistentId });
   });
 
   socket.on("updateSettings", ({ roomId, newSettings }) => {
