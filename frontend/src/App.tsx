@@ -119,6 +119,16 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
     "white",
   ];
 
+  const saveState = useCallback(() => {
+    const canvas = canvasRef.current;
+    const context = contextRef.current;
+    if (canvas && context) {
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      setHistory((prev) => [...prev, imageData]);
+    }
+  }, []);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -158,15 +168,6 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [handleUndo]);
-
-  const saveState = () => {
-    const canvas = canvasRef.current;
-    const context = contextRef.current;
-    if (canvas && context) {
-      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      setHistory((prev) => [...prev, imageData]);
-    }
-  };
 
   const startDrawing = ({
     nativeEvent,
@@ -295,80 +296,18 @@ function Game() {
   const [playerEmojis, setPlayerEmojis] = useState<{ [key: string]: string }>(
     {}
   );
-  const [sounds, setSounds] = useState<{
-    [key: string]: HTMLAudioElement;
-  }>({});
+  
 
   const isEmojiOnly = (str: string) => {
     const emojiRegex = /^(\p{Emoji_Presentation}|\s)+$/u;
     return emojiRegex.test(str.trim());
   };
 
-  useEffect(() => {
-    /*
-    const soundFiles = {
-      gameStart:
-        "https://assets.mixkit.co/sfx/preview/mixkit-video-game-win-2016.mp3",
-      hintSubmitted:
-        "https://mixkit.co/sfx/preview/mixkit-quick-win-video-game-2010.mp3",
-      votingStarts:
-        "https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.mp3",
-      liarRevealedCorrect:
-        "https://assets.mixkit.co/sfx/preview/mixkit-positive-interface-beep-221.mp3",
-      liarRevealedIncorrect:
-        "https://assets.mixkit.co/sfx/preview/mixkit-game-show-wrong-answer-950.mp3",
-      roundEnd:
-        "https://assets.mixkit.co/sfx/preview/mixkit-video-game-treasure-2066.mp3",
-      gameEnd:
-        "https://assets.mixkit.co/sfx/preview/mixkit-video-game-level-complete-2059.mp3",
-    };
+  
 
-    const audioElements: { [key: string]: HTMLAudioElement } = {};
-    Object.keys(soundFiles).forEach((key) => {
-      audioElements[key] = new Audio(
-        soundFiles[key as keyof typeof soundFiles]
-      );
-    });
-    setSounds(audioElements);
-    */
-  }, []);
+  
 
-  const playSound = useCallback(
-    (soundName: string) => {
-      if (sounds[soundName]) {
-        sounds[soundName].play();
-      }
-    },
-    [sounds]
-  );
-
-  useEffect(() => {
-    if (!room) return;
-
-    switch (room.gameState) {
-      case "playing":
-        playSound("gameStart");
-        break;
-      case "voting":
-        playSound("votingStarts");
-        break;
-      case "liarGuess":
-        if (room.voteResult?.isLiar) {
-          playSound("liarRevealedCorrect");
-        } else {
-          playSound("liarRevealedIncorrect");
-        }
-        break;
-      case "roundOver":
-        playSound("roundEnd");
-        break;
-      case "finished":
-        playSound("gameEnd");
-        break;
-      default:
-        break;
-    }
-  }, [room?.gameState, playSound, room]);
+  
 
   useEffect(() => {
     const onConnect = () => setIsConnected(true);
@@ -483,7 +422,6 @@ function Game() {
       wasLiar={wasLiar}
       timer={timer}
       messages={messages}
-      playSound={playSound}
       playerEmojis={playerEmojis}
     />
   );
@@ -593,7 +531,6 @@ interface GameRoomProps {
   wasLiar: boolean;
   timer: number | null;
   messages: ChatMessage[];
-  playSound: (soundName: string) => void;
   playerEmojis: { [key: string]: string };
 }
 
@@ -867,7 +804,6 @@ const GameRoom: React.FC<GameRoomProps> = ({
   wasLiar,
   timer,
   messages,
-  playSound,
   playerEmojis,
 }) => {
   const navigate = useNavigate();
@@ -889,6 +825,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
     }
   }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (myTurn && room.gameState === "playing" && room.hintType === "drawing") {
       setShowGameStatus(false);
@@ -911,7 +848,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
     if (!hintData.content.trim()) return alert("힌트를 입력해주세요.");
     socket.emit("submitHint", { roomId: room.roomId, hintData });
     setHint("");
-    playSound("hintSubmitted");
+    
   };
   const handleVote = (votedPlayerId: string) =>
     socket.emit("submitVote", { roomId: room.roomId, votedPlayerId });
