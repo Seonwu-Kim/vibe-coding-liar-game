@@ -72,8 +72,8 @@ interface GameStartPayload {
   word?: string | null;
 }
 
-const socket = io("https://liar-game-zno1.onrender.com");
-// const socket = io("http://localhost:3001");
+// const socket = io("https://liar-game-zno1.onrender.com");
+const socket = io("http://localhost:3001");
 const ALL_CATEGORIES = [
   "영화",
   "음식",
@@ -128,7 +128,6 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
     }
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -148,7 +147,7 @@ const DrawingCanvas: React.FC<DrawingCanvasProps> = ({ onSubmit }) => {
         saveState();
       }
     }, 0);
-  }, []);
+  }, [color, saveState]);
 
   useEffect(() => {
     if (contextRef.current) {
@@ -537,9 +536,11 @@ interface GameRoomProps {
 const Chat = ({
   roomId,
   messages,
+  className
 }: {
   roomId: string;
   messages: ChatMessage[];
+  className?: string;
 }) => {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -564,10 +565,10 @@ const Chat = ({
   };
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow-md">
+    <div className={`bg-white p-6 rounded-xl shadow-md ${className}`}>
       <h3 className="text-lg font-bold text-gray-800 mb-4">채팅</h3>
       <div
-        className="h-80 md:h-96 lg:h-[600px] mb-4 border rounded-lg bg-gray-50 overflow-y-auto p-3 space-y-2"
+        className="h-72 md:h-80 lg:h-[450px] mb-4 border rounded-lg bg-gray-50 overflow-y-auto p-3 space-y-2"
         ref={chatBodyRef}
       >
         {messages.map((msg, index) => (
@@ -929,7 +930,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
                 </button>
               </div>
               {showGameStatus && (
-                <div className="h-80 md:h-96 lg:h-[600px] overflow-y-auto p-4 border rounded-lg bg-gray-50 space-y-4">
+                <div className="h-72 md:h-80 lg:h-[450px] overflow-y-auto p-4 border rounded-lg bg-gray-50 space-y-4">
                   {room.hints.map((h, index) => (
                     <div key={index}>
                       <span className="font-semibold">{h.player.name}:</span>
@@ -1104,8 +1105,8 @@ const GameRoom: React.FC<GameRoomProps> = ({
         )}
       </div>
 
-      <div className="space-y-6">
-        <div className="bg-white p-6 rounded-xl shadow-md">
+      <div className="flex flex-col space-y-6">
+        <div className="bg-white p-6 rounded-xl shadow-md flex-grow">
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center">
               <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mr-2 my-0">
@@ -1118,7 +1119,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
               >
                 <span className="material-symbols-outlined">content_copy</span>
                 {showCopyMessage && (
-                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded py-1 px-2">
+                  <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-black text-white text-xs rounded py-1 px-2 whitespace-nowrap">
                     복사 완료!
                   </span>
                 )}
@@ -1231,7 +1232,7 @@ const GameRoom: React.FC<GameRoomProps> = ({
             )}
           </div>
         </div>
-        <Chat roomId={room.roomId} messages={messages} />
+        <Chat roomId={room.roomId} messages={messages} className="flex-grow" />
       </div>
     </div>
   );
