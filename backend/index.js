@@ -76,6 +76,7 @@ const resetRoundState = (room) => {
   room.liarGuessResult = null;
   room.currentCategory = null;
   room.liarGuessCards = [];
+  room.tiedPlayers = [];
   room.messages = [];
   if (room.roomId) stopTimer(room.roomId);
   return room;
@@ -90,9 +91,13 @@ const endRound = (roomId) => {
   io.to(roomId).emit("updateRoom", room);
 };
 
-const tallyVotes = (roomId) => {
+const tallyVotes = (roomId, isFinalVote = false) => {
   const room = rooms[roomId];
-  if (!room || room.gameState !== "voting") return;
+  if (
+    !room ||
+    (room.gameState !== "voting" && room.gameState !== "tieVote")
+  )
+    return;
 
   const voteCounts = {};
   const allPlayers = room.players.map((p) => p.id);
@@ -107,9 +112,41 @@ const tallyVotes = (roomId) => {
     voteCounts[vote] = (voteCounts[vote] || 0) + 1;
   });
 
-  const mostVotedId = Object.keys(voteCounts).reduce((a, b) =>
-    voteCounts[a] > voteCounts[b] ? a : b
+  let maxVotes = 0;
+  if (Object.keys(voteCounts).length > 0) {
+    maxVotes = Math.max(...Object.values(voteCounts));
+  }
+
+  const mostVotedIds = Object.keys(voteCounts).filter(
+    (id) => voteCounts[id] === maxVotes
   );
+
+  if (mostVotedIds.length > 1 && !isFinalVote) {
+    // Tie detected, start final vote
+    room.gameState = "tieVote";
+    room.tiedPlayers = mostVotedIds;
+    room.votes = {};
+    room.voteResult = null;
+    startTimer(roomId, VOTE_TIMER_DURATION, () =>
+      handleTimeout(roomId, "finalVote")
+    );
+    io.to(roomId).emit("updateRoom", room);
+    return;
+  }
+
+  // No tie, or it's the final vote, proceed to elimination
+  let mostVotedId;
+  if (mostVotedIds.length > 1 && isFinalVote) {
+    // If there's a tie in the final vote, Liar wins the round.
+    room.voteResult = { mostVotedPlayer: null, isLiar: false, tie: true };
+    const liar = room.players.find((p) => p.id === room.liarId);
+    if (liar) liar.score += 1; // Liar gets a point
+    endRound(roomId);
+    return;
+  } else {
+    mostVotedId = mostVotedIds[0];
+  }
+
   const mostVotedPlayer = room.players.find((p) => p.id === mostVotedId);
   const isLiar = mostVotedId === room.liarId;
   room.voteResult = { mostVotedPlayer, isLiar };
@@ -167,7 +204,9 @@ const handleTimeout = (roomId, phase) => {
     }
     io.to(roomId).emit("updateRoom", room);
   } else if (phase === "vote" && room.gameState === "voting") {
-    tallyVotes(roomId);
+    tallyVotes(roomId, false);
+  } else if (phase === "finalVote" && room.gameState === "tieVote") {
+    tallyVotes(roomId, true);
   }
 };
 
@@ -323,11 +362,22 @@ io.on("connection", (socket) => {
 
   socket.on("submitVote", ({ roomId, votedPlayerId }) => {
     const room = rooms[roomId];
-    if (!room || room.gameState !== "voting" || room.votes[socket.id]) return;
+    if (!room || !["voting", "tieVote"].includes(room.gameState) || room.votes[socket.id]) return;
+
+    // If it's a tie vote, only allow voting for one of the tied players
+    if (room.gameState === "tieVote" && !room.tiedPlayers.includes(votedPlayerId)) {
+      return;
+    }
+
     room.votes[socket.id] = votedPlayerId;
+
     if (Object.keys(room.votes).length === room.players.length) {
       stopTimer(roomId);
-      tallyVotes(roomId);
+      if (room.gameState === "voting") {
+        tallyVotes(roomId, false);
+      } else if (room.gameState === "tieVote") {
+        tallyVotes(roomId, true);
+      }
     } else {
       io.to(roomId).emit("updateRoom", room);
     }

@@ -23,8 +23,9 @@ interface Hint {
   content: string;
 }
 interface VoteResult {
-  mostVotedPlayer: Player;
+  mostVotedPlayer: Player | null;
   isLiar: boolean;
+  tie?: boolean;
 }
 interface LiarGuessResult {
   guess: string;
@@ -53,6 +54,7 @@ interface Room {
     | "waiting"
     | "playing"
     | "voting"
+    | "tieVote"
     | "liarGuess"
     | "roundOver"
     | "finished";
@@ -64,6 +66,7 @@ interface Room {
   voteResult: VoteResult | null;
   liarGuessResult: LiarGuessResult | null;
   timer: number | null;
+  tiedPlayers?: string[];
 }
 
 interface GameStartPayload {
@@ -786,10 +789,16 @@ const TimerDisplay = ({
   timer: number | null;
   gameState: Room["gameState"];
 }) => {
-  if (timer === null || (gameState !== "playing" && gameState !== "voting")) {
+  if (
+    timer === null ||
+    (gameState !== "playing" &&
+      gameState !== "voting" &&
+      gameState !== "tieVote")
+  ) {
     return null;
   }
-  const message = gameState === "playing" ? "힌트 제출까지" : "투표 마감까지";
+  const message =
+    gameState === "playing" ? "힌트 제출까지" : "투표 마감까지";
   return (
     <div className="bg-yellow-100 border border-yellow-200 text-yellow-800 text-center py-3 rounded-lg shadow-sm">
       <p>
@@ -956,27 +965,53 @@ const GameRoom: React.FC<GameRoomProps> = ({
                       투표하세요.
                     </p>
                   )}
+                  {room.gameState === "tieVote" && (
+                    <div className="p-4 rounded-lg bg-yellow-100 text-yellow-800">
+                      <h4 className="font-bold">동점자 발생!</h4>
+                      <p>
+                        최다 득표자가 여러 명입니다. 최종 변론 후 재투표를
+                        진행합니다.
+                      </p>
+                      <p className="font-semibold mt-2">
+                        동점자:{" "}
+                        {room.tiedPlayers
+                          ?.map(
+                            (pId) =>
+                              room.players.find((p) => p.id === pId)?.name
+                          )
+                          .join(", ")}
+                      </p>
+                    </div>
+                  )}
                   {room.voteResult && (
                     <div
                       className={`p-4 rounded-lg ${
-                        room.voteResult.isLiar
+                        room.voteResult.tie
+                          ? "bg-purple-100 text-purple-800"
+                          : room.voteResult.isLiar
                           ? "bg-green-100 text-green-800"
                           : "bg-red-100 text-red-800"
                       }`}
                     >
                       <h4 className="font-bold">투표 결과</h4>
-                      <p>
-                        {room.voteResult.mostVotedPlayer.name}님이
-                        지목되었습니다.
-                      </p>
-                      <p>
-                        그는{" "}
-                        <span className="font-bold">
-                          {room.voteResult.isLiar
-                            ? "라이어였습니다!"
-                            : "시민이었습니다."}
-                        </span>
-                      </p>
+                      {room.voteResult.tie ? (
+                        <p>재투표에서도 동점이 나와 라이어가 승리했습니다!</p>
+                      ) : room.voteResult.mostVotedPlayer ? (
+                        <>
+                          <p>
+                            {room.voteResult.mostVotedPlayer.name}님이
+                            지목되었습니다.
+                          </p>
+                          <p>
+                            그는{" "}
+                            <span className="font-bold">
+                              {room.voteResult.isLiar
+                                ? "라이어였습니다!"
+                                : "시민이었습니다."}
+                            </span>
+                          </p>
+                        </>
+                      ) : null}
                     </div>
                   )}
                   {room.liarGuessResult && (
@@ -1190,11 +1225,16 @@ const GameRoom: React.FC<GameRoomProps> = ({
                     >
                       {player.score}점
                     </span>
-                    {room.gameState === "voting" && (
+                    {["voting", "tieVote"].includes(room.gameState) && (
                       <button
                         className="bg-yellow-400 hover:bg-yellow-500 text-white text-xs font-bold py-1 px-2 rounded-full disabled:opacity-50 disabled:cursor-not-allowed"
                         onClick={() => handleVote(player.id)}
-                        disabled={hasVoted || player.id === socket.id}
+                        disabled={
+                          hasVoted ||
+                          player.id === socket.id ||
+                          (room.gameState === "tieVote" &&
+                            !room.tiedPlayers?.includes(player.id))
+                        }
                       >
                         투표
                       </button>
