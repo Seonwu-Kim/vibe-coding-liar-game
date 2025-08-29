@@ -25,18 +25,18 @@
   - React
   - TypeScript
   - Socket.IO Client
-  - Bootstrap
+  - Tailwind CSS
   - emoji-picker-react
 - **Backend**:
   - Node.js
   - Express
   - Socket.IO
 
-## 🚀 실행 방법
+## 🚀 로컬에서 실행하기
 
 1.  **저장소 복제**:
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/seon-mik/liar-game.git
     cd liar-game
     ```
 
@@ -45,13 +45,29 @@
     cd backend
     npm install
     npm start
+    # 백엔드 서버가 http://localhost:3001 에서 실행됩니다.
     ```
 
 3.  **프론트엔드 설정**:
+
+    다른 터미널을 열고, 프로젝트 루트에서 시작합니다.
     ```bash
-    cd ../frontend
+    cd frontend
     npm install
+    ```
+    
+    **중요:** 로컬 개발을 위해 프론트엔드에서 사용하는 소켓 서버 주소를 변경해야 합니다.
+    `src/App.tsx` 파일을 열어 다음 부분을 수정하세요.
+
+    ```typescript
+    // const socket = io("https://liar-game-zno1.onrender.com");
+    const socket = io("http://localhost:3001"); 
+    ```
+    
+    이제 프론트엔드 개발 서버를 시작합니다.
+    ```bash
     npm start
+    # 프론트엔드 개발 서버가 http://localhost:3000 에서 실행됩니다.
     ```
 
 4.  **애플리케이션 접속**:
