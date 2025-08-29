@@ -26,6 +26,7 @@ interface VoteResult {
   mostVotedPlayer: Player | null;
   isLiar: boolean;
   tie?: boolean;
+  actualLiar?: Player | null;
 }
 interface LiarGuessResult {
   guess: string;
@@ -995,21 +996,54 @@ const GameRoom: React.FC<GameRoomProps> = ({
                     >
                       <h4 className="font-bold">투표 결과</h4>
                       {room.voteResult.tie ? (
-                        <p>재투표에서도 동점이 나와 라이어가 승리했습니다!</p>
+                        <p>
+                          재투표에서도 동점이 나와 라이어가 1점을 획득하고 라운드가
+                          종료됩니다.
+                          <br />
+                          라이어는{" "}
+                          <span className="font-bold">
+                            {room.voteResult.actualLiar?.name}
+                          </span>
+                          님이었습니다.
+                        </p>
                       ) : room.voteResult.mostVotedPlayer ? (
                         <>
                           <p>
-                            {room.voteResult.mostVotedPlayer.name}님이
-                            지목되었습니다.
-                          </p>
-                          <p>
-                            그는{" "}
                             <span className="font-bold">
-                              {room.voteResult.isLiar
-                                ? "라이어였습니다!"
-                                : "시민이었습니다."}
+                              {room.voteResult.mostVotedPlayer.name}
                             </span>
+                            님이 지목되었습니다.
                           </p>
+                          {room.voteResult.isLiar ? (
+                            <div>
+                              <p>
+                                그는 <span className="font-bold">라이어였습니다!</span>
+                              </p>
+                              <p className="mt-1">
+                                시민팀이 1점을 획득합니다. 이제 라이어가 최종 추측을
+                                합니다.
+                              </p>
+                            </div>
+                          ) : (
+                            <div>
+                              <p>
+                                그는 <span className="font-bold">시민이었습니다.</span>
+                              </p>
+                              {room.voteResult.actualLiar && (
+                                <p>
+                                  진짜 라이어는{" "}
+                                  <span className="font-bold">
+                                    {room.voteResult.actualLiar.name}
+                                  </span>
+                                  님이었습니다!
+                                </p>
+                              )}
+                              <p className="mt-1">
+                                라이어가 1점을 획득합니다. 이제 라이어가 최종 추측을
+                                합니다.
+                              </p>
+                            </div>
+                          )}
                         </>
                       ) : null}
                     </div>

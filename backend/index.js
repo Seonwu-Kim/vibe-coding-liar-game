@@ -93,10 +93,7 @@ const endRound = (roomId) => {
 
 const tallyVotes = (roomId, isFinalVote = false) => {
   const room = rooms[roomId];
-  if (
-    !room ||
-    (room.gameState !== "voting" && room.gameState !== "tieVote")
-  )
+  if (!room || (room.gameState !== "voting" && room.gameState !== "tieVote"))
     return;
 
   const voteCounts = {};
@@ -134,32 +131,38 @@ const tallyVotes = (roomId, isFinalVote = false) => {
     return;
   }
 
-  // No tie, or it's the final vote, proceed to elimination
   let mostVotedId;
   if (mostVotedIds.length > 1 && isFinalVote) {
-    // If there's a tie in the final vote, Liar wins the round.
-    room.voteResult = { mostVotedPlayer: null, isLiar: false, tie: true };
+    // If there's a tie in the final vote, Liar wins the round (no guess needed).
     const liar = room.players.find((p) => p.id === room.liarId);
-    if (liar) liar.score += 1; // Liar gets a point
-    endRound(roomId);
+    room.voteResult = { mostVotedPlayer: null, isLiar: false, tie: true, actualLiar: liar };
+    if (liar) liar.score += 1; // Liar gets a point for a final tie
+    endRound(roomId); // End round directly
     return;
   } else {
-    mostVotedId = mostVotedIds[0];
+    // No tie or tie is resolved
+    mostVotedId = mostVotedIds[0] || room.players[0].id; // Fallback
   }
 
   const mostVotedPlayer = room.players.find((p) => p.id === mostVotedId);
   const isLiar = mostVotedId === room.liarId;
-  room.voteResult = { mostVotedPlayer, isLiar };
 
-  room.gameState = "liarGuess";
+  // --- SCORING LOGIC (Phase 1) ---
   if (isLiar) {
+    // Liar was voted out. Citizens get 1 point.
     room.players.forEach((p) => {
       if (p.id !== room.liarId) p.score += 1;
     });
+    room.voteResult = { mostVotedPlayer, isLiar: true, actualLiar: null };
   } else {
+    // Citizen was voted out. Liar gets 1 point.
     const liar = room.players.find((p) => p.id === room.liarId);
     if (liar) liar.score += 1;
+    room.voteResult = { mostVotedPlayer, isLiar: false, actualLiar: liar };
   }
+
+  // Always proceed to liarGuess state
+  room.gameState = "liarGuess";
 
   if (room.liarGuessType === "card") {
     const correctWord = room.word;
@@ -387,14 +390,21 @@ io.on("connection", (socket) => {
     const room = rooms[roomId];
     if (!room || room.gameState !== "liarGuess" || socket.id !== room.liarId)
       return;
+
     const correctGuess = guess.trim().toLowerCase() === room.word.toLowerCase();
+    room.liarGuessResult = { guess, correct: correctGuess };
+
+    // --- SCORING LOGIC (Phase 2) ---
     if (correctGuess) {
+      // Liar guesses correctly, Liar gets an additional point.
       const liar = room.players.find((p) => p.id === room.liarId);
       if (liar) liar.score += 1;
     }
-    room.liarGuessResult = { guess, correct: correctGuess };
+    // No points for citizens if guess is wrong, they already got points if they voted correctly.
+
     endRound(roomId);
   });
+
 
   socket.on("sendMessage", ({ roomId, message }) => {
     const room = rooms[roomId];
