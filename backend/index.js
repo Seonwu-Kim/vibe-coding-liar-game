@@ -16,6 +16,7 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3001;
 const HINT_TIMER_DURATION = 30;
 const VOTE_TIMER_DURATION = 20;
+const LIAR_GUESS_TIMER_DURATION = 20;
 
 const wordsData = JSON.parse(fs.readFileSync("./words.json", "utf8"));
 const rooms = {};
@@ -90,6 +91,26 @@ const endRound = (roomId) => {
   else room.gameState = "roundOver";
   io.to(roomId).emit("updateRoom", room);
 };
+
+const handleLiarGuess = (roomId, guess) => {
+    const room = rooms[roomId];
+    if (!room || room.gameState !== "liarGuess") return;
+
+    stopTimer(roomId);
+
+    const correctGuess = guess.trim().toLowerCase() === room.word.toLowerCase();
+    room.liarGuessResult = { guess, correct: correctGuess };
+
+    // --- SCORING LOGIC (Phase 2) ---
+    if (correctGuess) {
+      // Liar guesses correctly, Liar gets an additional point.
+      const liar = room.players.find((p) => p.id === room.liarId);
+      if (liar) liar.score += 1;
+    }
+    // No points for citizens if guess is wrong, they already got points if they voted correctly.
+
+    endRound(roomId);
+}
 
 const tallyVotes = (roomId, isFinalVote = false) => {
   const room = rooms[roomId];
@@ -173,6 +194,8 @@ const tallyVotes = (roomId, isFinalVote = false) => {
     const cards = [...selectedDecoys, correctWord];
     room.liarGuessCards = cards.sort(() => 0.5 - Math.random());
   }
+  
+  startTimer(roomId, LIAR_GUESS_TIMER_DURATION, () => handleTimeout(roomId, "liarGuess"));
 
   const liarSocket = io.sockets.sockets.get(room.liarId);
   if (liarSocket) liarSocket.emit("youWereTheLiar");
@@ -210,6 +233,8 @@ const handleTimeout = (roomId, phase) => {
     tallyVotes(roomId, false);
   } else if (phase === "finalVote" && room.gameState === "tieVote") {
     tallyVotes(roomId, true);
+  } else if (phase === "liarGuess" && room.gameState === "liarGuess") {
+    handleLiarGuess(roomId, ""); // Timeout means incorrect guess
   }
 };
 
@@ -388,21 +413,8 @@ io.on("connection", (socket) => {
 
   socket.on("submitLiarGuess", ({ roomId, guess }) => {
     const room = rooms[roomId];
-    if (!room || room.gameState !== "liarGuess" || socket.id !== room.liarId)
-      return;
-
-    const correctGuess = guess.trim().toLowerCase() === room.word.toLowerCase();
-    room.liarGuessResult = { guess, correct: correctGuess };
-
-    // --- SCORING LOGIC (Phase 2) ---
-    if (correctGuess) {
-      // Liar guesses correctly, Liar gets an additional point.
-      const liar = room.players.find((p) => p.id === room.liarId);
-      if (liar) liar.score += 1;
-    }
-    // No points for citizens if guess is wrong, they already got points if they voted correctly.
-
-    endRound(roomId);
+    if (!room || room.gameState !== "liarGuess" || socket.id !== room.liarId) return;
+    handleLiarGuess(roomId, guess);
   });
 
 

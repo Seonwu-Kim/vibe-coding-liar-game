@@ -790,16 +790,25 @@ const TimerDisplay = ({
   timer: number | null;
   gameState: Room["gameState"];
 }) => {
-  if (
-    timer === null ||
-    (gameState !== "playing" &&
-      gameState !== "voting" &&
-      gameState !== "tieVote")
-  ) {
+  const activeStates: Room["gameState"][] = ["playing", "voting", "tieVote", "liarGuess"];
+  if (timer === null || !activeStates.includes(gameState)) {
     return null;
   }
-  const message =
-    gameState === "playing" ? "힌트 제출까지" : "투표 마감까지";
+
+  let message = "";
+  switch (gameState) {
+    case "playing":
+      message = "힌트 제출까지";
+      break;
+    case "voting":
+    case "tieVote":
+      message = "투표 마감까지";
+      break;
+    case "liarGuess":
+      message = "라이어 추측까지";
+      break;
+  }
+
   return (
     <div className="bg-yellow-100 border border-yellow-200 text-yellow-800 text-center py-3 rounded-lg shadow-sm">
       <p>
